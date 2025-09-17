@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - QR Document Management System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Welcome Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h2>
+                    <p class="text-muted mb-0">Welcome back, {{ current_user.get_full_name() }}!</p>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-primary fs-6">{{ current_user.role.name }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ total_documents }}</h4>
+                            <p class="card-text">Total Documents</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-file-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ active_users_today }}</h4>
+                            <p class="card-text">Active Users Today</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-users fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ documents_accessed_today }}</h4>
+                            <p class="card-text">Documents Accessed</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-eye fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ predictions|length }}</h4>
+                            <p class="card-text">Predictions Available</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-crystal-ball fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 col-lg-3 mb-2">
+                            <a href="{{ url_for('scan_qr') }}" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-camera me-1"></i>Scan QR Code
+                            </a>
+                        </div>
+                        {% if current_user.can_upload_documents() %}
+                        <div class="col-md-6 col-lg-3 mb-2">
+                            <a href="{{ url_for('upload_document') }}" class="btn btn-outline-success w-100">
+                                <i class="fas fa-upload me-1"></i>Upload Document
+                            </a>
+                        </div>
+                        {% endif %}
+                        <div class="col-md-6 col-lg-3 mb-2">
+                            <a href="{{ url_for('documents') }}" class="btn btn-outline-info w-100">
+                                <i class="fas fa-folder me-1"></i>View Documents
+                            </a>
+                        </div>
+                        {% if current_user.has_role('Admin') or current_user.has_role('Teacher') or current_user.has_role('Registrar') %}
+                        <div class="col-md-6 col-lg-3 mb-2">
+                            <a href="{{ url_for('analytics') }}" class="btn btn-outline-warning w-100">
+                                <i class="fas fa-chart-bar me-1"></i>View Analytics
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Documents -->
+        <div class="col-lg-8 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-clock me-2"></i>Recent Documents</h5>
+                    <a href="{{ url_for('documents') }}" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    {% if recent_documents %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Document</th>
+                                        <th>Type</th>
+                                        <th>Owner</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for doc in recent_documents %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-file text-primary me-2"></i>
+                                                <div>
+                                                    <div class="fw-bold">{{ doc.title }}</div>
+                                                    <small class="text-muted">{{ doc.filename }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ doc.document_type.name }}</span>
+                                        </td>
+                                        <td>{{ doc.owner.get_full_name() }}</td>
+                                        <td>{{ doc.created_at.strftime('%Y-%m-%d') }}</td>
+                                        <td>
+                                            <a href="{{ url_for('document_detail', doc_id=doc.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No documents found</p>
+                            {% if current_user.can_upload_documents() %}
+                            <a href="{{ url_for('upload_document') }}" class="btn btn-primary">
+                                <i class="fas fa-upload me-1"></i>Upload Your First Document
+                            </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Predictive Insights -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5><i class="fas fa-crystal-ball me-2"></i>Predictive Insights</h5>
+                </div>
+                <div class="card-body">
+                    {% if predictions %}
+                        {% for prediction in predictions[:5] %}
+                        <div class="alert alert-{{ 'success' if prediction.trend == 'increase' else 'info' if prediction.trend == 'seasonal_increase' else 'warning' }} mb-2">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-{{ 'arrow-up' if prediction.trend == 'increase' else 'calendar' if prediction.trend == 'seasonal_increase' else 'arrow-down' }} me-2 mt-1"></i>
+                                <div>
+                                    <small class="fw-bold">{{ prediction.document_type }}</small>
+                                    <div class="small">{{ prediction.message }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        {% if current_user.has_role('Admin') or current_user.has_role('Teacher') or current_user.has_role('Registrar') %}
+                        <div class="text-center mt-3">
+                            <a href="{{ url_for('analytics') }}" class="btn btn-sm btn-outline-primary">
+                                View Detailed Analytics
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-chart-line fa-2x text-muted mb-3"></i>
+                            <p class="text-muted">No predictions available yet</p>
+                            <small class="text-muted">More data is needed to generate insights</small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,219 @@
+Complete Wireframe: QR Code-Based Document Storage & Management System with Predictive Analytics
+1. Login / Authentication Page
+
+Layout
+
+Top: School Logo + System Name
+
+Center (Card Form):
+
+Username / Email (input)
+
+Password (input)
+
+Role Selector (Dropdown: Admin, Teacher, Student, Registrar)
+
+🔲 “Remember Me” checkbox
+
+🔘 Login Button
+
+🔗 Forgot Password? link
+
+Bottom: “Powered by [School Name]”
+
+2. Dashboard (Home Page)
+
+Top Navigation Bar:
+
+Left: School Logo + System Title
+
+Right: Notifications 🔔 | Profile Menu 👤
+
+Sidebar Navigation:
+
+📁 Documents
+
+📷 Scan QR
+
+📊 Analytics & Predictions
+
+👥 Users (Admin only)
+
+🛠 Admin Panel (Admin only)
+
+⚙ Settings
+
+Main Dashboard (Grid of Cards + Charts):
+
+📄 Total Documents Stored
+
+👥 Active Users Today
+
+🔎 Documents Accessed Today
+
+📊 Predictive Insights Card (e.g., “Form 137 requests expected to increase by 30% next month”)
+
+3. Document Management Page
+
+Top Section (Filters & Search):
+
+🔍 Search Bar (by Document Name, Owner, ID, QR Code)
+
+Filters: Document Type | Upload Date | Status
+
+Main Area (Table/Grid View):
+
+Columns: Document Title | Owner | Uploaded By | Date | QR Code (icon) | Actions (View/Edit/Delete)
+
+Floating button: “➕ Upload Document”
+
+Right Panel (Optional):
+
+Recently Viewed Documents
+
+Most Accessed Documents
+
+4. Upload Document Page
+
+Form Layout:
+
+Document Title (input)
+
+Student/Employee ID (auto-linked input)
+
+Document Type (dropdown: Form 137, Grades, Certificate, etc.)
+
+Upload File (PDF/Word/Image)
+
+“Generate QR Code” button → Auto-generated QR displayed
+
+Bottom Buttons:
+
+✅ Save
+
+❌ Cancel
+
+5. QR Code Scanning Page
+
+Top: Live Camera Feed
+Center:
+
+📷 “Scan QR” button
+
+Option to upload a QR image
+
+Bottom (Results Panel):
+
+Document Info (Title, Owner, Type, Date)
+
+Quick Actions: Open | Download | Share
+
+6. Analytics & Predictive Page
+
+Visuals:
+
+📈 Line Chart: Document Requests per Month
+
+🥧 Pie Chart: Document Type Distribution
+
+📊 Bar Graph: Top Requested Documents
+
+🔮 Predictive Card: Forecasts (e.g., “Graduation season → More Certificate Requests”)
+
+7. User Management (Admin Only)
+
+Table Layout:
+
+Columns: Name | Role | Email | Last Login | Status | Actions (Edit/Reset/Disable)
+
+Search Bar + Filter by Role
+
+Floating button: “➕ Add User”
+
+8. Admin Page (NEW – Dedicated Panel)
+
+Top Navigation Bar:
+
+Admin Icon 👤 | Notifications 🔔 | Settings ⚙
+
+Sidebar (Admin Panel):
+
+👥 User Management
+
+📁 Document Permissions
+
+🏫 School Data & Classes
+
+🔒 Security & Access Logs
+
+💾 Backup & Restore
+
+📊 Reports
+
+Main Admin Area (Tabbed Layout):
+
+User Roles & Permissions
+
+Table: User | Role | Department | Status | Last Login | Actions
+
+Role Manager: Define permissions (View / Upload / Edit / Delete / Analytics access)
+
+Document Access Control
+
+Matrix View: Document Types (Form 137, Certificates, Grades) vs. Who Can Access (Teachers, Registrar, Admin)
+
+Toggle switches for Allow/Deny
+
+Security Logs
+
+Table: User | Action | Document | Date/Time | Status
+
+Export Logs to Excel/PDF
+
+School Data Settings
+
+Update School Info (Logo, Name, Address)
+
+Manage Departments / Grade Levels
+
+Archive Old Records
+
+Backup & Restore
+
+“Create Backup Now” button
+
+List of backups with Date | File Size | Restore option
+
+Auto-backup schedule
+
+Reports & Analytics (Admin Overview)
+
+Monthly Document Requests (downloadable report)
+
+Top Active Users
+
+Storage Usage
+
+Failed Login Attempts
+
+9. Settings Page (General – All Users)
+
+Update Profile
+
+Change Password
+
+Notification Preferences
+
+QR Code Style Settings (size, color, error correction)
+
+📌 Wireframe Flow
+
+Login → Dashboard
+
+Dashboard → Manage Documents / Scan QR / View Analytics / Settings
+
+Admin → Admin Panel → Manage Users, Permissions, Security Logs, Reports
+
+Upload Document → Generate QR → Saved → Accessible via Scan QR
+
+Predictive Analytics → Automatically displayed in Dashboard & Analytics Page

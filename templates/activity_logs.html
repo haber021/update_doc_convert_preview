@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Activity Logs - QR Document Management System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+      <div>
+        <h2><i class="fas fa-clipboard-list me-2"></i>Activity Logs</h2>
+        <p class="text-muted mb-0">Review all user activities for security and auditing</p>
+      </div>
+      <div>
+        <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left me-1"></i>Back to Admin
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filter Logs</h5>
+        </div>
+        <div class="card-body">
+          <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label">User</label>
+              <select name="user_id" class="form-select">
+                <option value="">All Users</option>
+                {% for u in users %}
+                  <option value="{{ u.id }}" {% if selected_user_id == u.id %}selected{% endif %}>{{ u.get_full_name() }} (@{{ u.username }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Action</label>
+              <select name="action" class="form-select">
+                <option value="">All Actions</option>
+                {% for a in actions %}
+                  <option value="{{ a }}" {% if selected_action == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Document ID</label>
+              <input type="number" name="document_id" value="{{ selected_document_id or '' }}" class="form-control" placeholder="e.g., 123">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Start Date</label>
+              <input type="date" name="start" value="{{ start }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">End Date</label>
+              <input type="date" name="end" value="{{ end }}" class="form-control">
+            </div>
+            <div class="col-md-1">
+              <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i></button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logs Table -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="fas fa-list me-2"></i>Logs</h5>
+          {% if logs.pages > 1 %}
+          <small class="text-muted">Page {{ logs.page }} of {{ logs.pages }}</small>
+          {% endif %}
+        </div>
+        <div class="card-body p-0">
+          {% if logs.items %}
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-dark">
+                <tr>
+                  <th>Time (UTC)</th>
+                  <th>User</th>
+                  <th>Action</th>
+                  <th>Document</th>
+                  <th>IP</th>
+                  <th>User Agent</th>
+                  <th>Details</th>
+                  <th>Admin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for log in logs.items %}
+                <tr data-log-id="{{ log.id }}">
+                  <td><small>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <i class="fas fa-user text-primary me-2"></i>
+                      <div>
+                        <div class="fw-bold">{{ log.user.get_full_name() }}</div>
+                        <small class="text-muted">@{{ log.user.username }} • {{ log.user.role.name }}</small>
+                        <div><a href="{{ url_for('admin_user_activity', user_id=log.user.id) }}" class="small">view only this user</a></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge bg-{{ 'success' if log.action == 'upload' else 'info' if log.action in ['view','email','qr_scan','review'] else 'warning' if log.action in ['download','download_qr'] else 'danger' if 'failed' in log.action else 'secondary' }}">{{ log.action }}</span>
+                  </td>
+                  <td>
+                    {% if log.document %}
+                      <a href="{{ url_for('document_detail', doc_id=log.document.id) }}" class="text-decoration-none">
+                        {{ log.document.title[:28] }}{% if log.document.title|length > 28 %}...{% endif %}
+                      </a>
+                      <div class="small text-muted">{{ log.document.document_number or ('#' ~ log.document.id) }}</div>
+                    {% else %}
+                      <span class="text-muted">N/A</span>
+                    {% endif %}
+                  </td>
+                  <td><small class="text-muted">{{ log.ip_address or '-' }}</small></td>
+                  <td><small class="text-muted" title="{{ log.user_agent or '' }}">{{ (log.user_agent or '')[:28] }}{% if (log.user_agent or '')|length > 28 %}...{% endif %}</small></td>
+                  <td><small class="text-muted" title="{{ log.details or '' }}">{{ (log.details or '')[:40] }}{% if (log.details or '')|length > 40 %}...{% endif %}</small></td>
+                  <td>
+                    {% if log.action and log.action.startswith('request_') %}
+                      <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-success" onclick="approveAccess({{ log.id }})" title="Approve">
+                          <i class="fas fa-check"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="rejectAccess({{ log.id }})" title="Reject">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </div>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center py-4">
+            <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+            <div class="text-muted">No logs found for the selected filters.</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  {% if logs.pages > 1 %}
+  <div class="row mt-3">
+    <div class="col-12">
+      <nav aria-label="Logs pagination">
+        <ul class="pagination justify-content-center">
+          {% set q = request.args.to_dict(flat=True) %}
+          {% if logs.has_prev %}
+          <li class="page-item">
+            {% set q_prev = q.copy() %}
+            {% set _ = q_prev.update({'page': logs.prev_num}) %}
+            <a class="page-link" href="{{ url_for('admin_activity_logs', **q_prev) }}"><i class="fas fa-chevron-left"></i></a>
+          </li>
+          {% endif %}
+
+          {% for page_num in logs.iter_pages() %}
+            {% if page_num %}
+              {% set q_p = q.copy() %}
+              {% set _ = q_p.update({'page': page_num}) %}
+              <li class="page-item {% if page_num == logs.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('admin_activity_logs', **q_p) }}">{{ page_num }}</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+          {% endfor %}
+
+          {% if logs.has_next %}
+          <li class="page-item">
+            {% set q_next = q.copy() %}
+            {% set _ = q_next.update({'page': logs.next_num}) %}
+            <a class="page-link" href="{{ url_for('admin_activity_logs', **q_next) }}"><i class="fas fa-chevron-right"></i></a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function approveAccess(logId){
+  try {
+    const res = await fetch(`{{ url_for('approve_access_request', request_id=0) }}`.replace('0', String(logId)), {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || `HTTP ${res.status}`);
+    const row = document.querySelector(`tr[data-log-id='${logId}']`);
+    if (row) row.classList.add('table-success');
+  } catch (e) {
+    alert('Approve failed: ' + e.message);
+  }
+}
+async function rejectAccess(logId){
+  try {
+    const res = await fetch(`{{ url_for('reject_access_request', request_id=0) }}`.replace('0', String(logId)), {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || `HTTP ${res.status}`);
+    const row = document.querySelector(`tr[data-log-id='${logId}']`);
+    if (row) row.classList.add('table-danger');
+  } catch (e) {
+    alert('Reject failed: ' + e.message);
+  }
+}
+</script>
+{% endblock %}

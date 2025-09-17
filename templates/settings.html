@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - QR Document Management System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="fas fa-cog me-2"></i>Settings</h2>
+            <p class="text-muted mb-0">Manage your account settings and preferences</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Profile Settings -->
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-user me-2"></i>Profile Information</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="#" onsubmit="return updateProfile(event)">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="first_name" class="form-label">First Name</label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" 
+                                       value="{{ current_user.first_name }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="last_name" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" 
+                                       value="{{ current_user.last_name }}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ current_user.email }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" 
+                                   value="{{ current_user.username }}" readonly>
+                            <div class="form-text">Username cannot be changed. Contact administrator if needed.</div>
+                        </div>
+                        
+                        {% if current_user.student_id %}
+                        <div class="mb-3">
+                            <label for="student_id" class="form-label">Student/Employee ID</label>
+                            <input type="text" class="form-control" id="student_id" name="student_id" 
+                                   value="{{ current_user.student_id }}" readonly>
+                            <div class="form-text">ID cannot be changed. Contact administrator if needed.</div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Role</label>
+                            <input type="text" class="form-control" 
+                                   value="{{ current_user.role.name }}" readonly>
+                            <div class="form-text">Role is assigned by administrators.</div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Update Profile
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Change Password -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-lock me-2"></i>Change Password</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('change_password') }}">
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Current Password</label>
+                            <input type="password" class="form-control" id="current_password" 
+                                   name="current_password" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="new_password" 
+                                   name="new_password" minlength="6" required>
+                            <div class="form-text">Password must be at least 6 characters long.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirm_password" 
+                                   name="confirm_password" required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-key me-1"></i>Change Password
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Account Information & Preferences -->
+        <div class="col-lg-4">
+            <!-- Account Information -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6><i class="fas fa-info-circle me-2"></i>Account Information</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted">Member Since</small>
+                        <div class="fw-bold">{{ current_user.created_at.strftime('%B %d, %Y') }}</div>
+                    </div>
+                    
+                    {% if current_user.last_login %}
+                    <div class="mb-3">
+                        <small class="text-muted">Last Login</small>
+                        <div class="fw-bold">{{ current_user.last_login.strftime('%Y-%m-%d %H:%M') }}</div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <small class="text-muted">Account Status</small>
+                        <div>
+                            <span class="badge bg-{{ 'success' if current_user.is_active else 'danger' }}">
+                                {{ 'Active' if current_user.is_active else 'Inactive' }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-muted">Documents Owned</small>
+                        <div class="fw-bold">{{ current_user.owned_documents.filter_by(is_active=True).count() }}</div>
+                    </div>
+                    
+                    {% if current_user.can_upload_documents() %}
+                    <div class="mb-3">
+                        <small class="text-muted">Documents Uploaded</small>
+                        <div class="fw-bold">{{ current_user.uploaded_documents.filter_by(is_active=True).count() }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Notification Preferences -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6><i class="fas fa-bell me-2"></i>Notification Preferences</h6>
+                </div>
+                <div class="card-body">
+                    <form onsubmit="return saveNotificationSettings(event)">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="emailNotifications" checked>
+                            <label class="form-check-label" for="emailNotifications">
+                                Email Notifications
+                            </label>
+                        </div>
+                        
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="documentAlerts" checked>
+                            <label class="form-check-label" for="documentAlerts">
+                                Document Access Alerts
+                            </label>
+                        </div>
+                        
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="systemUpdates">
+                            <label class="form-check-label" for="systemUpdates">
+                                System Updates
+                            </label>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                            <i class="fas fa-save me-1"></i>Save Preferences
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- QR Code Settings -->
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-qrcode me-2"></i>QR Code Settings</h6>
+                </div>
+                <div class="card-body">
+                    <form onsubmit="return saveQrSettings(event)">
+                        <div class="mb-3">
+                            <label for="qrSize" class="form-label">QR Code Size</label>
+                            <select class="form-select form-select-sm" id="qrSize">
+                                <option value="small">Small (100x100)</option>
+                                <option value="medium" selected>Medium (200x200)</option>
+                                <option value="large">Large (300x300)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="qrErrorCorrection" class="form-label">Error Correction</label>
+                            <select class="form-select form-select-sm" id="qrErrorCorrection">
+                                <option value="L" selected>Low (7%)</option>
+                                <option value="M">Medium (15%)</option>
+                                <option value="Q">Quartile (25%)</option>
+                                <option value="H">High (30%)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="includeTitle" checked>
+                            <label class="form-check-label" for="includeTitle">
+                                Include title in QR
+                            </label>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                            <i class="fas fa-save me-1"></i>Save QR Settings
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateProfile(event) {
+    event.preventDefault();
+    // In a real implementation, this would send an AJAX request to update profile
+    alert('Profile update functionality would be implemented here');
+    return false;
+}
+
+function saveNotificationSettings(event) {
+    event.preventDefault();
+    
+    const settings = {
+        emailNotifications: document.getElementById('emailNotifications').checked,
+        documentAlerts: document.getElementById('documentAlerts').checked,
+        systemUpdates: document.getElementById('systemUpdates').checked
+    };
+    
+    // In a real implementation, this would send an AJAX request
+    console.log('Notification settings:', settings);
+    alert('Notification preferences saved successfully!');
+    return false;
+}
+
+function saveQrSettings(event) {
+    event.preventDefault();
+    
+    const settings = {
+        qrSize: document.getElementById('qrSize').value,
+        qrErrorCorrection: document.getElementById('qrErrorCorrection').value,
+        includeTitle: document.getElementById('includeTitle').checked
+    };
+    
+    // In a real implementation, this would send an AJAX request
+    console.log('QR settings:', settings);
+    alert('QR code settings saved successfully!');
+    return false;
+}
+
+// Password confirmation validation
+document.getElementById('confirm_password').addEventListener('input', function() {
+    const newPassword = document.getElementById('new_password').value;
+    const confirmPassword = this.value;
+    
+    if (newPassword && confirmPassword) {
+        if (newPassword !== confirmPassword) {
+            this.setCustomValidity('Passwords do not match');
+        } else {
+            this.setCustomValidity('');
+        }
+    }
+});
+</script>
+{% endblock %}

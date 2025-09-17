@@ -1,0 +1,899 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - QR Document Management System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-cog me-2"></i>Admin Panel</h2>
+                    <p class="text-muted mb-0">System administration and management</p>
+                </div>
+                <div>
+                    <span class="badge bg-danger fs-6">Admin Access Required</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Edit Requests (moved to top for visibility) -->
+    <div class="row mb-4" id="pending-edit-card">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    {% set req_count = (pending_edit_requests|length) if pending_edit_requests else 0 %}
+                    <h5 class="mb-0 d-flex align-items-center">
+                        <i class="fas fa-clipboard-list me-2"></i>
+                        Pending Edit Requests
+                        <span class="badge {{ 'bg-danger' if req_count > 0 else 'bg-secondary' }} ms-2" title="Pending requests">
+                            <i class="fas fa-bell me-1"></i>{{ req_count }}
+                        </span>
+                    </h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <small class="text-muted me-2">Latest 50</small>
+                        <button class="btn btn-sm btn-outline-danger" onclick="rejectAllEditRequests(this)" {% if req_count == 0 %}disabled{% endif %}>
+                            <i class="fas fa-times-circle me-1"></i>Reject All
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="pendingRequestsAlert" class="alert d-none" role="alert" aria-live="polite"></div>
+                    {% if pending_edit_requests %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Requested By</th>
+                                    <th>Document</th>
+                                    <th>Reason</th>
+                                    <th>Requested At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in pending_edit_requests %}
+                                <tr data-request-id="{{ req.id }}">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-user text-primary me-2"></i>
+                                            <div>
+                                                <div class="fw-bold">{{ req.user.get_full_name() }}</div>
+                                                <small class="text-muted">@{{ req.user.username }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                {% if req.document %}
+                                <a href="{{ url_for('document_detail', doc_id=req.document.id) }}" class="text-decoration-none">
+                                    {{ req.document.title[:40] }}{% if req.document.title|length > 40 %}...{% endif %}
+                                </a>
+                                <div class="small text-muted">{{ req.document.document_number or ('#' ~ req.document.id) }}</div>
+                                <div class="small text-muted">
+                                    Owner: {{ req.document.owner_first_name }} {{ req.document.owner_last_name }}
+                                </div>
+                                <button class="btn btn-sm btn-outline-info ms-2" onclick="previewDocument({{ req.document.id }})" title="Preview">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ (req.details or '').replace('Edit access requested. Reason: ', '')[:80] }}{% if (req.details or '')|length > 100 %}...{% endif %}</small>
+                                    </td>
+                                    <td><small>{{ req.timestamp.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-success" onclick="approveRequest({{ req.id }}, this)">
+                                                <i class="fas fa-check me-1"></i>Approve
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="rejectRequest({{ req.id }}, this)">
+                                                <i class="fas fa-times me-1"></i>Reject
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                        <div class="text-muted">No pending edit requests</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Access Requests (Download/Print/Update) -->
+    <div class="row mb-4" id="pending-access-card">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    {% set acc_count = (pending_access_requests|length) if pending_access_requests else 0 %}
+                    <h5 class="mb-0 d-flex align-items-center">
+                        <i class="fas fa-key me-2"></i>
+                        Pending Access Requests
+                        <span class="badge {{ 'bg-danger' if acc_count > 0 else 'bg-secondary' }} ms-2" title="Pending access requests">
+                            <i class="fas fa-bell me-1"></i>{{ acc_count }}
+                        </span>
+                    </h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <small class="text-muted me-2">Latest 100</small>
+                        <button class="btn btn-sm btn-outline-danger" onclick="rejectAllAccessRequests(this)" {% if acc_count == 0 %}disabled{% endif %}>
+                            <i class="fas fa-times-circle me-1"></i>Reject All
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if pending_access_requests %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Action</th>
+                                    <th>Document</th>
+                                    <th>Requested At</th>
+                                    <th>Admin</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in pending_access_requests %}
+                                <tr data-access-id="{{ req.id }}">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-user text-primary me-2"></i>
+                                            <div>
+                                                <div class="fw-bold">{{ req.user.get_full_name() }}</div>
+                                                <small class="text-muted">@{{ req.user.username }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-warning text-dark">{{ req.action }}</span>
+                                    </td>
+                                    <td>
+                                        {% if req.document %}
+                                        <a href="{{ url_for('document_detail', doc_id=req.document.id) }}" class="text-decoration-none">
+                                            {{ req.document.title[:40] }}{% if req.document.title|length > 40 %}...{% endif %}
+                                        </a>
+                                        <div class="small text-muted">{{ req.document.document_number or ('#' ~ req.document.id) }}</div>
+                                        <button class="btn btn-sm btn-outline-info ms-2" onclick="previewDocument({{ req.document.id }})" title="Preview">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        {% else %}
+                                        <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><small>{{ req.timestamp.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-success" onclick="approveAccessRequest({{ req.id }}, this)" title="Approve">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="rejectAccessRequest({{ req.id }}, this)" title="Reject">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                        <div class="text-muted">No pending access requests</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Temporary Grants (Expirations) -->
+    <div class="row mb-4" id="active-grants-card">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-hourglass-half me-2"></i>Active Grants (30-minute window)</h5>
+                    <small class="text-muted">Live expirations</small>
+                </div>
+                <div class="card-body">
+                    {% if active_grants_info %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Grant</th>
+                                    <th>Document</th>
+                                    <th>Granted At (UTC)</th>
+                                    <th>Expires At (UTC)</th>
+                                    <th>Remaining</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in active_grants_info %}
+                                {% set g = item.grant %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-user text-primary me-2"></i>
+                                            <div>
+                                                <div class="fw-bold">{{ g.user.get_full_name() }}</div>
+                                                <small class="text-muted">@{{ g.user.username }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge bg-success">{{ g.action }}</span></td>
+                                    <td>
+                                        {% if g.document %}
+                                        <a href="{{ url_for('document_detail', doc_id=g.document.id) }}" class="text-decoration-none">
+                                            {{ g.document.title[:40] }}{% if g.document.title|length > 40 %}...{% endif %}
+                                        </a>
+                                        <div class="small text-muted">{{ g.document.document_number or ('#' ~ g.document.id) }}</div>
+                                        <button class="btn btn-sm btn-outline-info ms-2" onclick="previewDocument({{ g.document.id }})" title="Preview">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        {% else %}
+                                        <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><small>{{ g.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                                    <td><small>{{ item.exp_str }}</small></td>
+                                    <td><span class="badge bg-secondary countdown" data-exp="{{ item.exp_iso }}">--:--</span></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="revokeGrant({{ g.id }}, this)" title="Revoke now">
+                                            <i class="fas fa-ban me-1"></i>Revoke
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                        <div class="text-muted">No active grants at the moment</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ total_users }}</h4>
+                            <p class="mb-0">Total Users</p>
+                        </div>
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ total_documents }}</h4>
+                            <p class="mb-0">Total Documents</p>
+                        </div>
+                        <i class="fas fa-file-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ recent_logs|length }}</h4>
+                            <p class="mb-0">Recent Activities</p>
+                        </div>
+                        <i class="fas fa-activity fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>98%</h4>
+                            <p class="mb-0">System Health</p>
+                        </div>
+                        <i class="fas fa-heartbeat fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-tools me-2"></i>Admin Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ url_for('admin_users') }}" class="btn btn-outline-primary w-100 h-100">
+                                <div class="text-center py-3">
+                                    <i class="fas fa-users fa-2x mb-2"></i>
+                                    <div>User Management</div>
+                                    <small class="text-muted">Manage user accounts</small>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ url_for('documents') }}" class="btn btn-outline-success w-100 h-100">
+                                <div class="text-center py-3">
+                                    <i class="fas fa-folder fa-2x mb-2"></i>
+                                    <div>Document Management</div>
+                                    <small class="text-muted">Manage all documents</small>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ url_for('register') }}" class="btn btn-outline-info w-100 h-100">
+                                <div class="text-center py-3">
+                                    <i class="fas fa-user-plus fa-2x mb-2"></i>
+                                    <div>Add User</div>
+                                    <small class="text-muted">Create new user account</small>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ url_for('analytics') }}" class="btn btn-outline-warning w-100 h-100">
+                                <div class="text-center py-3">
+                                    <i class="fas fa-chart-bar fa-2x mb-2"></i>
+                                    <div>Analytics</div>
+                                    <small class="text-muted">View system analytics</small>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <a href="{{ url_for('admin_activity_logs') }}" class="btn btn-outline-dark w-100 h-100">
+                                <div class="text-center py-3">
+                                    <i class="fas fa-clipboard-list fa-2x mb-2"></i>
+                                    <div>Activity Logs</div>
+                                    <small class="text-muted">Audit all user activity</small>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Document Type -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-plus-circle me-2"></i>Add Document Type</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('add_document_type') }}">
+                        <div class="mb-3">
+                            <label for="docTypeName" class="form-label">Document Type Name</label>
+                            <input type="text" class="form-control" id="docTypeName" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="docTypeDesc" class="form-label">Description (optional)</label>
+                            <textarea class="form-control" id="docTypeDesc" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="text-end">
+                            <button type="submit" class="btn btn-primary">Add Type</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document Types List -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-tags me-2"></i>Document Types</h5>
+                </div>
+                <div class="card-body">
+                    {% if document_types %}
+                    <div class="list-group">
+                        {% for dt in document_types %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ dt.name }}</strong>
+                                {% if dt.description %}
+                                <div class="small text-muted">{{ dt.description }}</div>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <form method="POST" action="{{ url_for('delete_document_type', type_id=dt.id) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete document type {{ dt.name }}? This cannot be undone.');">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No document types defined yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <!-- System Information -->
+    <div class="row mb-4">
+        <div class="col-lg-8 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5><i class="fas fa-list me-2"></i>Recent Activity Logs</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_logs %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Action</th>
+                                        <th>Document</th>
+                                        <th>Time</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for log in recent_logs %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-user text-primary me-2"></i>
+                                                <div>
+                                                    <div class="fw-bold">{{ log.user.get_full_name() }}</div>
+                                                    <small class="text-muted">{{ log.user.role.name }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{{ 'success' if log.action == 'upload' else 'info' if log.action == 'view' else 'warning' if log.action == 'download' else 'danger' if 'failed' in log.action else 'secondary' }}">
+                                                {{ log.action }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if log.document %}
+                                                <a href="{{ url_for('document_detail', doc_id=log.document.id) }}" class="text-decoration-none">
+                                                    {{ log.document.title[:30] }}{% if log.document.title|length > 30 %}...{% endif %}
+                                                </a>
+                                                <button class="btn btn-sm btn-outline-info ms-2" onclick="previewDocument({{ log.document.id }})" title="Preview">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <small>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+                                        </td>
+                                        <td>
+                                            {% if log.details %}
+                                                <small class="text-muted">{{ log.details[:50] }}{% if log.details|length > 50 %}...{% endif %}</small>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No recent activity logs found.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle me-2"></i>System Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6>System Status</h6>
+                        <div class="d-flex justify-content-between">
+                            <span>Database</span>
+                            <span class="badge bg-success">Online</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>File Storage</span>
+                            <span class="badge bg-success">Healthy</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>QR Generator</span>
+                            <span class="badge bg-success">Active</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Storage Usage</h6>
+                        <div class="progress mb-2">
+                            <div class="progress-bar" role="progressbar" style="width: 35%"></div>
+                        </div>
+                        <small class="text-muted">35% of storage used</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Recent Uploads</h6>
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-info" role="progressbar" style="width: 60%"></div>
+                        </div>
+                        <small class="text-muted">60% increase this month</small>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <button class="btn btn-sm btn-outline-danger" onclick="confirmSystemMaintenance()">
+                            <i class="fas fa-tools me-1"></i>System Maintenance
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Settings -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-sliders-h me-2"></i>Quick Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="allowRegistration" checked>
+                                <label class="form-check-label" for="allowRegistration">
+                                    Allow New User Registration
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enableNotifications" checked>
+                                <label class="form-check-label" for="enableNotifications">
+                                    Enable Email Notifications
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="autoBackup" checked>
+                                <label class="form-check-label" for="autoBackup">
+                                    Automatic Daily Backup
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="logAccess" checked>
+                                <label class="form-check-label" for="logAccess">
+                                    Log All File Access
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enableQrDownload">
+                                <label class="form-check-label" for="enableQrDownload">
+                                    Allow QR Code Downloads
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="maintenanceMode">
+                                <label class="form-check-label" for="maintenanceMode">
+                                    Maintenance Mode
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-end mt-3">
+                        <button class="btn btn-primary" onclick="saveSettings()">
+                            <i class="fas fa-save me-1"></i>Save Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Preview Modal -->
+    <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="previewModalLabel">File Preview</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <iframe id="previewIframe" src="" width="100%" height="600px" style="border: none;"></iframe>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmSystemMaintenance() {
+    if (confirm('Are you sure you want to put the system in maintenance mode? This will prevent users from accessing the system.')) {
+        alert('System maintenance mode would be activated here.');
+    }
+}
+
+function previewDocument(docId) {
+    const iframe = document.getElementById('previewIframe');
+    iframe.src = `{{ url_for('view_document', doc_id=0) }}`.replace('0', String(docId));
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    modal.show();
+}
+
+function approveRequest(id, btn) {
+    if (!confirm('Approve edit access for this request (valid for 24 hours)?')) return;
+    const row = btn ? btn.closest('tr') : null;
+    const original = btn ? btn.innerHTML : '';
+    const otherBtn = row ? row.querySelector('.btn-outline-danger') : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Approving...'; }
+    if (otherBtn) { otherBtn.disabled = true; }
+    fetch(`{{ url_for('approve_edit_request', request_id=0) }}`.replace('0', String(id)), {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(r => r.json()).then(data => {
+        if (!data.success) throw new Error(data.message || 'Failed');
+        const alertBox = document.getElementById('pendingRequestsAlert');
+        if (alertBox) {
+            alertBox.className = 'alert alert-success';
+            alertBox.textContent = 'Request approved. Temporary edit access granted.';
+        }
+        if (row) row.remove();
+    }).catch(e => {
+        const alertBox = document.getElementById('pendingRequestsAlert');
+        if (alertBox) {
+            alertBox.className = 'alert alert-danger';
+            alertBox.textContent = 'Failed to approve: ' + e.message;
+        }
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        if (otherBtn) { otherBtn.disabled = false; }
+    });
+}
+
+function rejectRequest(id, btn) {
+    if (!confirm('Reject this edit request?')) return;
+    const row = btn ? btn.closest('tr') : null;
+    const original = btn ? btn.innerHTML : '';
+    const otherBtn = row ? row.querySelector('.btn-success') : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Rejecting...'; }
+    if (otherBtn) { otherBtn.disabled = true; }
+    fetch(`{{ url_for('reject_edit_request', request_id=0) }}`.replace('0', String(id)), {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(r => r.json()).then(data => {
+        if (!data.success) throw new Error(data.message || 'Failed');
+        const alertBox = document.getElementById('pendingRequestsAlert');
+        if (alertBox) {
+            alertBox.className = 'alert alert-warning';
+            alertBox.textContent = 'Request rejected.';
+        }
+        if (row) row.remove();
+    }).catch(e => {
+        const alertBox = document.getElementById('pendingRequestsAlert');
+        if (alertBox) {
+            alertBox.className = 'alert alert-danger';
+            alertBox.textContent = 'Failed to reject: ' + e.message;
+        }
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        if (otherBtn) { otherBtn.disabled = false; }
+    });
+}
+
+function saveSettings() {
+    // Collect all switch states
+    const settings = {
+        allowRegistration: document.getElementById('allowRegistration').checked,
+        enableNotifications: document.getElementById('enableNotifications').checked,
+        autoBackup: document.getElementById('autoBackup').checked,
+        logAccess: document.getElementById('logAccess').checked,
+        enableQrDownload: document.getElementById('enableQrDownload').checked,
+        maintenanceMode: document.getElementById('maintenanceMode').checked
+    };
+    
+    // In a real implementation, this would send an AJAX request
+    console.log('Settings to save:', settings);
+    alert('Settings saved successfully!');
+}
+
+function previewDocument(docId) {
+    // Placeholder for document preview functionality
+    // Assuming a route exists to serve the document file for preview
+    const iframe = document.getElementById('previewIframe');
+    iframe.src = `{{ url_for('view_document', doc_id=0) }}`.replace('0', String(docId));
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    modal.show();
+}
+function approveAccessRequest(id, btn) {
+    const row = btn ? btn.closest('tr') : null;
+    const original = btn ? btn.innerHTML : '';
+    const otherBtn = row ? row.querySelector('.btn-outline-danger') : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>'; }
+    if (otherBtn) otherBtn.disabled = true;
+    fetch(`{{ url_for('approve_access_request', request_id=0) }}`.replace('0', String(id)), {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(r => r.json()).then(data => {
+        if (!data.success) throw new Error(data.message || 'Failed');
+        if (row) row.remove();
+    }).catch(e => {
+        alert('Failed to approve: ' + e.message);
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        if (otherBtn) otherBtn.disabled = false;
+    });
+}
+function rejectAccessRequest(id, btn) {
+    const row = btn ? btn.closest('tr') : null;
+    const original = btn ? btn.innerHTML : '';
+    const otherBtn = row ? row.querySelector('.btn-success') : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>'; }
+    if (otherBtn) otherBtn.disabled = true;
+    fetch(`{{ url_for('reject_access_request', request_id=0) }}`.replace('0', String(id)), {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(r => r.json()).then(data => {
+        if (!data.success) throw new Error(data.message || 'Failed');
+        if (row) row.remove();
+    }).catch(e => {
+        alert('Failed to reject: ' + e.message);
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        if (otherBtn) otherBtn.disabled = false;
+    });
+}
+function revokeGrant(id, btn) {
+    if (!confirm('Revoke this grant immediately?')) return;
+    const row = btn ? btn.closest('tr') : null;
+    const original = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>'; }
+    fetch(`{{ url_for('revoke_grant', grant_id=0) }}`.replace('0', String(id)), {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(r => r.json()).then(data => {
+        if (!data.success) throw new Error(data.message || 'Failed');
+        if (row) row.remove();
+    }).catch(e => {
+        alert('Failed to revoke: ' + e.message);
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    });
+}
+// Live countdowns for active grants
+(function(){
+    function tick(){
+        const nodes = document.querySelectorAll('.countdown[data-exp]');
+        const now = Date.now();
+        nodes.forEach(n => {
+            const ts = Date.parse(n.getAttribute('data-exp'));
+            if (isNaN(ts)) { n.textContent = '—'; return; }
+            const diff = Math.max(0, Math.floor((ts - now)/1000));
+            const m = Math.floor(diff/60);
+            const s = diff % 60;
+            n.textContent = (diff>0) ? (m + 'm ' + String(s).padStart(2,'0') + 's') : 'expired';
+            if (diff === 0) {
+                if (n.classList.contains('bg-secondary')) n.classList.replace('bg-secondary','bg-danger');
+                else n.classList.add('bg-danger');
+            }
+        });
+    }
+    tick();
+    setInterval(tick, 1000);
+})();
+
+function rejectAllEditRequests(btn){
+    if (!confirm('Reject ALL pending edit requests? This cannot be undone.')) return;
+    const original = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Rejecting...'; }
+    fetch(`{{ url_for('reject_all_edit_requests') }}`, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(r => r.json()).then(data => {
+        if (!data.success) throw new Error(data.message || 'Failed');
+        alert(`Rejected ${data.rejected || 0} pending edit request(s).`);
+        window.location.reload();
+    }).catch(e => {
+        alert('Bulk reject failed: ' + e.message);
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    });
+}
+function rejectAllAccessRequests(btn){
+    if (!confirm('Reject ALL pending access requests? This cannot be undone.')) return;
+    const original = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Rejecting...'; }
+    fetch(`{{ url_for('reject_all_access_requests') }}`, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(r => r.json()).then(data => {
+        if (!data.success) throw new Error(data.message || 'Failed');
+        alert(`Rejected ${data.rejected || 0} pending access request(s).`);
+        window.location.reload();
+    }).catch(e => {
+        alert('Bulk reject failed: ' + e.message);
+    }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    });
+}
+
+// Auto-refresh Pending Edit Requests and Pending Access Requests without full reload
+(function(){
+    const REFRESH_INTERVAL_MS = 10000; // 10s
+    async function fetchAdminHtml(){
+        try {
+            const resp = await fetch(window.location.pathname + '?_ts=' + Date.now(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!resp.ok) return null;
+            const text = await resp.text();
+            const parser = new DOMParser();
+            return parser.parseFromString(text, 'text/html');
+        } catch (e) { return null; }
+    }
+    async function refreshSectionById(id){
+        const doc = await fetchAdminHtml();
+        if (!doc) return;
+        const incoming = doc.getElementById(id);
+        const current = document.getElementById(id);
+        if (incoming && current) {
+            // Replace the entire section
+            current.outerHTML = incoming.outerHTML;
+        }
+    }
+    function tick(){
+        refreshSectionById('pending-edit-card');
+        refreshSectionById('pending-access-card');
+        refreshSectionById('active-grants-card');
+    }
+    // initial delayed tick then interval
+    setTimeout(tick, 2500);
+    setInterval(tick, REFRESH_INTERVAL_MS);
+})();
+</script>
+{% endblock %}

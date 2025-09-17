@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Edit: {{ document.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('document_detail', doc_id=document.id) }}" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left me-1"></i>Back
+        </a>
+        <h4 class="mb-0"><i class="fas fa-pen-to-square me-2"></i>Edit Document</h4>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-info text-wrap">{{ document.filename }}</span>
+        {% if not current_user.can_access_admin() and edit_expires_at %}
+        <span class="badge bg-warning text-dark" title="Temporary edit access expiration">
+          <i class="fas fa-hourglass-half me-1"></i>
+          Expires <span id="editCountdown"></span>
+        </span>
+        {% endif %}
+        <button id="saveBtn" class="btn btn-primary">
+          <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+          <i class="fas fa-save me-1"></i>Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="saveAlert" class="alert d-none" role="alert" aria-live="polite"></div>
+
+  {% if editor_kind == 'text' %}
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="fas fa-font me-2"></i>Text Editor</span>
+      {% if payload.format == 'docx' %}
+      <span class="text-warning small"><i class="fas fa-triangle-exclamation me-1"></i>Editing DOCX as plain text (formatting/images will not be preserved)</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <textarea id="textEditor" class="form-control" rows="18" placeholder="Start editing...">{{ payload.text }}</textarea>
+    </div>
+  </div>
+  {% elif editor_kind == 'table' %}
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="fas fa-table me-2"></i>Table Editor</span>
+      <div class="btn-group">
+        <button id="addRowBtn" class="btn btn-sm btn-outline-primary"><i class="fas fa-plus me-1"></i>Add Row</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="editorTable" class="table table-bordered table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              {% for col in payload.columns %}
+              <th contenteditable="true">{{ col }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in payload.rows %}
+            <tr>
+              {% for c in r %}
+              <td contenteditable="true">{{ c }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <small class="text-muted d-block mt-2">Tip: Click a cell to edit. Use the Add Row button to append rows.</small>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-warning">
+    Unsupported editor type. Please go back and try a different file.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  const editorKind = {{ editor_kind|tojson }};
+  const payload = {{ payload|tojson }};
+  const saveUrl = {{ url_for('save_document_edit', doc_id=document.id)|tojson }};
+  const expiresAt = {{ (edit_expires_at or '')|tojson }};
+
+  const saveBtn = document.getElementById('saveBtn');
+  const saveSpinner = saveBtn ? saveBtn.querySelector('.spinner-border') : null;
+  const saveAlert = document.getElementById('saveAlert');
+
+  function showAlert(kind, msg) {
+    if (!saveAlert) return;
+    saveAlert.className = 'alert alert-' + kind;
+    saveAlert.textContent = msg;
+  }
+
+  function getTablePayload() {
+    const table = document.getElementById('editorTable');
+    if (!table) return null;
+    const theadCells = Array.from(table.tHead.rows[0].cells);
+    const columns = theadCells.map(th => th.textContent.trim());
+    const rows = Array.from(table.tBodies[0].rows).map(tr => Array.from(tr.cells).map(td => td.textContent));
+    return { columns, rows, format: payload.format || 'csv' };
+  }
+
+  function getTextPayload() {
+    const textarea = document.getElementById('textEditor');
+    const text = textarea ? textarea.value : '';
+    const fmt = payload.format || ({{ (document.filename or '')|tojson }}.toLowerCase().endsWith('.docx') ? 'docx' : null);
+    return { text, format: fmt };
+  }
+
+  async function doSave() {
+    if (!saveBtn) return;
+    saveBtn.disabled = true;
+    if (saveSpinner) saveSpinner.classList.remove('d-none');
+    showAlert('info', 'Saving...');
+
+    try {
+      let body = {};
+      if (editorKind === 'text') {
+        const t = getTextPayload();
+        body = { kind: 'text', text: t.text, format: t.format };
+      } else if (editorKind === 'table') {
+        const t = getTablePayload();
+        body = { kind: 'table', columns: t.columns, rows: t.rows, format: t.format };
+      } else {
+        throw new Error('Unsupported editor type');
+      }
+
+      const resp = await fetch(saveUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify(body)
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.success) {
+        const msg = (data && data.message) ? data.message : 'Save failed';
+        throw new Error(msg);
+      }
+      showAlert('success', 'Document saved successfully.');
+    } catch (e) {
+      showAlert('danger', 'Error: ' + (e && e.message ? e.message : 'Save failed'));
+    } finally {
+      if (saveSpinner) saveSpinner.classList.add('d-none');
+      saveBtn.disabled = false;
+    }
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', doSave);
+  }
+
+  // Countdown for temporary edit access
+  (function(){
+    if (!expiresAt) return;
+    const countdownEl = document.getElementById('editCountdown');
+    function tick(){
+      const ts = Date.parse(expiresAt);
+      const now = Date.now();
+      const diff = Math.max(0, Math.floor((ts - now)/1000));
+      const m = Math.floor(diff/60);
+      const s = diff % 60;
+      if (countdownEl) countdownEl.textContent = (diff>0) ? (m + 'm ' + String(s).padStart(2,'0') + 's') : 'now';
+      if (diff <= 0 && saveAlert) {
+        saveAlert.className = 'alert alert-warning';
+        saveAlert.innerHTML = '<i class="fas fa-clock me-1"></i> Your temporary edit access has expired. Please request a new edit grant from the document page.';
+      }
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
+
+  const addRowBtn = document.getElementById('addRowBtn');
+  if (addRowBtn) {
+    addRowBtn.addEventListener('click', function() {
+      const table = document.getElementById('editorTable');
+      if (!table) return;
+      const colCount = table.tHead.rows[0].cells.length;
+      const row = table.tBodies[0].insertRow(-1);
+      for (let i=0; i<colCount; i++) {
+        const cell = row.insertCell(-1);
+        cell.contentEditable = 'true';
+        cell.textContent = '';
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

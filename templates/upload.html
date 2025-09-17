@@ -1,0 +1,544 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Document - QR Document Management System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-upload me-2"></i>Upload Document</h4>
+                    <p class="mb-0 text-muted">Upload a new document and generate QR code</p>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">
+                                <i class="fas fa-heading me-1"></i>Document Title *
+                            </label>
+                            <input type="text" class="form-control" id="title" name="title" 
+                                   placeholder="Enter document title" required>
+                            <div class="form-text">Give your document a descriptive title</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="document_type" class="form-label">
+                                <i class="fas fa-tag me-1"></i>Document Type *
+                            </label>
+                            <select class="form-select" id="document_type" name="document_type" required>
+                                <option value="">Select document type</option>
+                                {% for doc_type in document_types %}
+                                    <option value="{{ doc_type.id }}">{{ doc_type.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        {% if current_user.has_role('Admin') or current_user.has_role('Teacher') or current_user.has_role('Registrar') %}
+                        <div class="mb-3">
+                            <label for="student_id" class="form-label">
+                                <i class="fas fa-id-card me-1"></i>Student/Employee ID
+                            </label>
+                            <input type="text" class="form-control" id="student_id" name="student_id" 
+                                   placeholder="Enter student or employee ID (optional)" value="{{ current_user.student_id or '' }}">
+                            <div class="form-text">
+                                Leave empty to assign to yourself, or enter ID to assign to specific person
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Regular users: submit the current user's student_id in a hidden field so owner is assigned automatically -->
+                        <input type="hidden" name="student_id" value="{{ current_user.student_id or '' }}">
+                        {% endif %}
+
+                        <!-- Owner Document Details -->
+                        <div class="mb-3">
+                            <label class="form-label"><i class="fas fa-user me-1"></i>Owner Document Details *</label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control" name="owner_first_name" placeholder="First name" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control" name="owner_middle_name" placeholder="Middle name" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control" name="owner_last_name" placeholder="Last name" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="owner_address" class="form-label"><i class="fas fa-location-dot me-1"></i>Address *</label>
+                            <textarea class="form-control" id="owner_address" name="owner_address" rows="2" placeholder="Street, Barangay, City/Province" required></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="file" class="form-label">
+                                <i class="fas a-file me-1"></i>Select File *
+                            </label>
+                            <input type="file" class="form-control" id="file" name="file" 
+                                   accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,.txt,.jpg,.jpeg,.png,.gif" required>
+                            <div class="form-text">
+                                Supported formats: PDF, DOC, DOCX, XLSX, XLS, CSV, TXT, JPG, PNG, GIF (Max: 16MB)
+                            </div>
+                        </div>
+                        
+                        <!-- File Preview Area -->
+                        <div id="filePreview" class="mb-3 d-none">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">File Preview</h6>
+                                    <div id="previewContent"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Confirm correct file -->
+                        <div id="confirmSection" class="mb-3 d-none">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="confirmCorrect" required>
+                                <label class="form-check-label" for="confirmCorrect">
+                                    I have viewed the preview and confirm this is the correct file
+                                </label>
+                            </div>
+                            <div class="form-text">Preview the file above, then confirm to enable upload.</div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-upload me-1"></i>Upload & Generate QR
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <a href="{{ url_for('documents') }}" class="btn btn-secondary w-100">
+                                    <i class="fas fa-times me-1"></i>Cancel
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Upload Information -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6><i class="fas fa-info-circle me-2"></i>Upload Information</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>What happens after upload?</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-1"></i> File is securely stored</li>
+                                <li><i class="fas fa-check text-success me-1"></i> QR code is automatically generated</li>
+                                <li><i class="fas fa-check text-success me-1"></i> Document becomes searchable</li>
+                                <li><i class="fas fa-check text-success me-1"></i> Access is logged for security</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>QR Code Features</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-qrcode text-primary me-1"></i> Instant document access</li>
+                                <li><i class="fas fa-mobile-alt text-primary me-1"></i> Mobile-friendly scanning</li>
+                                <li><i class="fas fa-shield-alt text-primary me-1"></i> Secure and encrypted</li>
+                                <li><i class="fas fa-download text-primary me-1"></i> Direct download option</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for viewing original file -->
+<div class="modal fade" id="originalViewModal" tabindex="-1" aria-labelledby="originalViewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="originalViewModalLabel">View Original Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="originalViewContent" style="height: 70vh;">
+                <!-- Content will be inserted here -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+// Enhanced client-side preview and confirmation before upload
+(function(){
+  const fileInput = document.getElementById('file');
+  const previewWrap = document.getElementById('filePreview');
+  const previewContent = document.getElementById('previewContent');
+  const confirmWrap = document.getElementById('confirmSection');
+  const confirmChk = document.getElementById('confirmCorrect');
+  const form = fileInput ? fileInput.closest('form') : null;
+  const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+  const MAX_MB = 16;
+  let blobUrl = null;
+
+  function bytesToMB(b){ return (b/1024/1024).toFixed(2); }
+
+  function getFileIcon(filename){
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    const map = { pdf: 'pdf', doc: 'word', docx: 'word', xlsx: 'excel', xls: 'excel', txt: 'alt', csv: 'alt', log: 'alt', jpg: 'image', jpeg: 'image', png: 'image', gif: 'image' };
+    return map[ext] || 'alt';
+  }
+
+  function revokeBlob(){ if (blobUrl) { try { URL.revokeObjectURL(blobUrl); } catch(e){} blobUrl = null; } }
+
+  function resetPreview(){
+    revokeBlob();
+    if (previewContent) previewContent.innerHTML = '';
+    if (previewWrap) previewWrap.classList.add('d-none');
+    if (confirmWrap) confirmWrap.classList.add('d-none');
+    if (confirmChk) { confirmChk.checked = false; confirmChk.required = true; }
+    if (submitBtn) submitBtn.disabled = true;
+  }
+
+  function buildTextPreview(file){
+    const holderId = 'textPreviewHolder';
+    let holder = document.createElement('pre');
+    holder.id = holderId;
+    holder.className = 'border rounded p-2 bg-white';
+    holder.style.maxHeight = '300px';
+    holder.style.overflow = 'auto';
+    holder.textContent = 'Loading preview...';
+    const reader = new FileReader();
+    reader.onload = function(){
+      const text = String(reader.result || '');
+      holder.textContent = text.length > 4000 ? text.slice(0, 4000) + '\n\n… (truncated) …' : text;
+    };
+    reader.onerror = function(){ holder.textContent = 'Unable to load text preview.'; };
+    reader.readAsText(file);
+    return holder;
+  }
+
+  function buildDocxPreview(file){
+    const wrap = document.createElement('div');
+    wrap.className = 'border rounded bg-white p-2';
+    wrap.style.maxHeight = '300px';
+    wrap.style.overflow = 'auto';
+    const status = document.createElement('div');
+    status.className = 'small text-muted mb-2';
+    status.innerHTML = '<i class="fas fa-rotate me-1"></i>Rendering Word preview…';
+    wrap.appendChild(status);
+
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        if (!window.mammoth) throw new Error('Mammoth not loaded');
+        mammoth.convertToHtml({ arrayBuffer: reader.result })
+          .then(function(result){
+            status.remove();
+            const container = document.createElement('div');
+            container.innerHTML = result.value || '<div class="text-muted">Empty document</div>';
+            wrap.appendChild(container);
+          })
+          .catch(function(){ status.innerHTML = '<span class="text-danger">Failed to render .docx preview.</span>'; });
+      } catch (e) {
+        status.innerHTML = '<span class="text-danger">Word preview library unavailable.</span>';
+      }
+    };
+    reader.onerror = function(){ status.innerHTML = '<span class="text-danger">Unable to read the file for preview.</span>'; };
+    reader.readAsArrayBuffer(file);
+    return wrap;
+  }
+
+  function buildExcelPreview(file){
+    const wrap = document.createElement('div');
+    wrap.className = 'border rounded bg-white p-2';
+    wrap.style.maxHeight = '300px';
+    wrap.style.overflow = 'auto';
+    const status = document.createElement('div');
+    status.className = 'small text-muted mb-2';
+    status.innerHTML = '<i class="fas fa-rotate me-1"></i>Rendering Excel preview…';
+    wrap.appendChild(status);
+
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        if (!window.XLSX) throw new Error('XLSX not loaded');
+        const data = new Uint8Array(reader.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheetName = wb.SheetNames && wb.SheetNames[0];
+        if (!sheetName) { status.innerHTML = '<span class="text-danger">No sheets found.</span>'; return; }
+        const ws = wb.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+        const maxRows = 30, maxCols = 12;
+        const table = document.createElement('table');
+        table.className = 'table table-sm table-striped table-bordered mb-0';
+        const tbody = document.createElement('tbody');
+        const rows = json.slice(0, maxRows);
+        rows.forEach((r)=>{
+          const tr = document.createElement('tr');
+          const cols = (r || []).slice(0, maxCols);
+          for (let i=0; i<cols.length; i++){
+            const td = document.createElement('td');
+            const v = cols[i];
+            td.textContent = (v === undefined || v === null) ? '' : String(v);
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        status.remove();
+        wrap.appendChild(table);
+        if (json.length > maxRows) {
+          const note = document.createElement('div');
+          note.className = 'text-muted small mt-1';
+          note.textContent = `Showing first ${maxRows} rows for preview.`;
+          wrap.appendChild(note);
+        }
+      } catch (e) {
+        status.innerHTML = '<span class="text-danger">Failed to render Excel preview.</span>';
+      }
+    };
+    reader.onerror = function(){ status.innerHTML = '<span class="text-danger">Unable to read the file for preview.</span>'; };
+    reader.readAsArrayBuffer(file);
+    return wrap;
+  }
+
+  function buildPreview(file){
+    const sizeMB = file.size / 1024 / 1024;
+    const type = file.type || '';
+    blobUrl = URL.createObjectURL(file);
+
+    const icon = getFileIcon(file.name);
+    const info = document.createElement('div');
+    info.className = 'd-flex align-items-center mb-2';
+    info.innerHTML = `<i class="fas fa-file-${icon} fa-2x text-primary me-3"></i>
+      <div>
+        <div class="fw-bold">${file.name}</div>
+        <small class="text-muted">Size: ${bytesToMB(file.size)} MB | Type: ${type || 'unknown'}</small>
+      </div>`;
+
+    // Warning if over server-side limit
+    const warn = document.createElement('div');
+    if (sizeMB > MAX_MB) {
+      warn.className = 'alert alert-danger py-1 px-2 my-2';
+      warn.innerHTML = `<i class="fas fa-triangle-exclamation me-1"></i> File exceeds ${MAX_MB} MB limit. Please choose a smaller file.`;
+    }
+
+    // Viewer
+    const viewerBox = document.createElement('div');
+    let canOpenFull = false;
+    if (type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = blobUrl; img.className = 'img-fluid border rounded';
+      img.style.maxHeight = '300px';
+      viewerBox.appendChild(img);
+      canOpenFull = true;
+    } else if (type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+      const iframe = document.createElement('iframe');
+      iframe.src = blobUrl;
+      iframe.style.width = '100%';
+      iframe.style.height = '300px';
+      iframe.style.border = '0';
+      iframe.setAttribute('title', 'PDF preview');
+      viewerBox.appendChild(iframe);
+      canOpenFull = true;
+    } else if (/\.(docx)$/i.test(file.name) || type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      viewerBox.appendChild(buildDocxPreview(file));
+    } else if (/\.(xlsx|xls)$/i.test(file.name) || type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || type === 'application/vnd.ms-excel') {
+      viewerBox.appendChild(buildExcelPreview(file));
+    } else if (type.startsWith('text/') || /\.(txt|csv|log)$/i.test(file.name)) {
+      viewerBox.appendChild(buildTextPreview(file));
+    } else if (/\.(doc)$/i.test(file.name) || type === 'application/msword') {
+      const note = document.createElement('div');
+      note.className = 'alert alert-secondary small mb-0';
+      note.innerHTML = '<i class="fas fa-circle-info me-1"></i> .doc preview is not supported in browser. Consider converting to .docx or PDF to preview before upload.';
+      viewerBox.appendChild(note);
+    } else {
+      const note = document.createElement('div');
+      note.className = 'alert alert-secondary small mb-0';
+      note.innerHTML = '<i class="fas fa-info-circle me-1"></i> Preview not available for this file type. Please verify by file name and details.';
+      viewerBox.appendChild(note);
+    }
+
+    // Full preview button
+    const actions = document.createElement('div');
+    actions.className = 'd-flex justify-content-between align-items-center mt-2';
+    const left = document.createElement('div');
+    const right = document.createElement('div');
+    actions.appendChild(left); actions.appendChild(right);
+
+    // View Original button for all files
+    const originalBtn = document.createElement('button');
+    originalBtn.type = 'button';
+    originalBtn.className = 'btn btn-sm btn-outline-primary';
+    originalBtn.innerHTML = '<i class="fas fa-eye me-1"></i>View Original Document';
+    originalBtn.addEventListener('click', function(){
+      const modal = new bootstrap.Modal(document.getElementById('originalViewModal'));
+      const content = document.getElementById('originalViewContent');
+      content.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Loading...</div>';
+      modal.show();
+
+      // Determine content based on file type
+      const file = fileInput.files[0];
+      const type = file.type || '';
+      const name = file.name || '';
+
+      if (type.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.src = blobUrl;
+        img.className = 'img-fluid';
+        content.innerHTML = '';
+        content.appendChild(img);
+      } else if (type === 'application/pdf' || /\.pdf$/i.test(name)) {
+        const iframe = document.createElement('iframe');
+        iframe.src = blobUrl;
+        iframe.style.width = '100%';
+        iframe.style.height = '70vh';
+        iframe.style.border = '0';
+        iframe.setAttribute('title', 'PDF Document');
+        content.innerHTML = '';
+        content.appendChild(iframe);
+      } else if (/\.(docx)$/i.test(name) || type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const reader = new FileReader();
+        reader.onload = function(){
+          try {
+            if (!window.mammoth) throw new Error('Mammoth not loaded');
+            mammoth.convertToHtml({ arrayBuffer: reader.result })
+              .then(function(result){
+                content.innerHTML = result.value || '<div class="text-muted">Empty document</div>';
+                content.style.overflow = 'auto';
+              })
+              .catch(function(){
+                content.innerHTML = '<div class="alert alert-danger">Failed to render Word document preview.</div>';
+              });
+          } catch (e) {
+            content.innerHTML = '<div class="alert alert-danger">Word preview library unavailable.</div>';
+          }
+        };
+        reader.onerror = function(){
+          content.innerHTML = '<div class="alert alert-danger">Unable to read the file.</div>';
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (/\.(xlsx|xls)$/i.test(name) || type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || type === 'application/vnd.ms-excel') {
+        const reader = new FileReader();
+        reader.onload = function(){
+          try {
+            if (!window.XLSX) throw new Error('XLSX not loaded');
+            const data = new Uint8Array(reader.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const sheetName = wb.SheetNames && wb.SheetNames[0];
+            if (!sheetName) {
+              content.innerHTML = '<div class="alert alert-danger">No sheets found in Excel file.</div>';
+              return;
+            }
+            const ws = wb.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+            const table = document.createElement('table');
+            table.className = 'table table-striped table-bordered';
+            const tbody = document.createElement('tbody');
+            json.forEach((r)=>{
+              const tr = document.createElement('tr');
+              (r || []).forEach((v)=>{
+                const td = document.createElement('td');
+                td.textContent = (v === undefined || v === null) ? '' : String(v);
+                tr.appendChild(td);
+              });
+              tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            content.innerHTML = '';
+            content.appendChild(table);
+            content.style.overflow = 'auto';
+          } catch (e) {
+            content.innerHTML = '<div class="alert alert-danger">Failed to render Excel preview.</div>';
+          }
+        };
+        reader.onerror = function(){
+          content.innerHTML = '<div class="alert alert-danger">Unable to read the file.</div>';
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (type.startsWith('text/') || /\.(txt|csv|log)$/i.test(name)) {
+        const reader = new FileReader();
+        reader.onload = function(){
+          const pre = document.createElement('pre');
+          pre.textContent = reader.result;
+          pre.style.maxHeight = '70vh';
+          pre.style.overflow = 'auto';
+          content.innerHTML = '';
+          content.appendChild(pre);
+        };
+        reader.onerror = function(){
+          content.innerHTML = '<div class="alert alert-danger">Unable to read the file.</div>';
+        };
+        reader.readAsText(file);
+      } else {
+        content.innerHTML = '<div class="alert alert-info">Preview not available for this file type. The file will be uploaded as is.</div>';
+      }
+    });
+    left.appendChild(originalBtn);
+
+    if (canOpenFull) {
+      const fullBtn = document.createElement('button');
+      fullBtn.type = 'button';
+      fullBtn.className = 'btn btn-sm btn-outline-secondary';
+      fullBtn.innerHTML = '<i class="fas fa-up-right-from-square me-1"></i>Open Full Preview';
+      fullBtn.addEventListener('click', function(){ try { window.open(blobUrl, '_blank'); } catch(e){} });
+      left.appendChild(fullBtn);
+    }
+
+    // Re-select/clear control
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'btn btn-sm btn-outline-danger';
+    clearBtn.innerHTML = '<i class="fas fa-xmark me-1"></i>Clear File';
+    clearBtn.addEventListener('click', function(){ fileInput.value = ''; resetPreview(); });
+    right.appendChild(clearBtn);
+
+    // Render all
+    previewContent.innerHTML = '';
+    previewContent.appendChild(info);
+    if (warn.className) previewContent.appendChild(warn);
+    previewContent.appendChild(viewerBox);
+    previewContent.appendChild(actions);
+  }
+
+  function updateSubmitState(){
+    if (!submitBtn) return;
+    const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+    const underLimit = hasFile ? (fileInput.files[0].size <= MAX_MB*1024*1024) : false;
+    submitBtn.disabled = !(hasFile && confirmChk && confirmChk.checked && underLimit);
+  }
+
+  if (fileInput) {
+    // Initialize button state
+    if (submitBtn) submitBtn.disabled = true;
+
+    fileInput.addEventListener('change', function(e){
+      resetPreview();
+      const file = e.target.files[0];
+      if (!file) return;
+      if (previewWrap) previewWrap.classList.remove('d-none');
+      if (confirmWrap) confirmWrap.classList.remove('d-none');
+      buildPreview(file);
+
+      // Auto-suggest title if empty
+      const titleInput = document.getElementById('title');
+      if (titleInput && !titleInput.value) {
+        const base = (file.name || '').replace(/\.[^.]+$/, '');
+        const suggested = base.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, m => m.toUpperCase());
+        titleInput.value = suggested;
+      }
+      updateSubmitState();
+    });
+  }
+
+  if (confirmChk) {
+    confirmChk.addEventListener('change', updateSubmitState);
+  }
+
+  // Revoke blob URL when navigating away
+  window.addEventListener('beforeunload', revokeBlob);
+})();
+</script>
+{% endblock %}

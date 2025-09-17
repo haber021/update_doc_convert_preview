@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Print - {{ document.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-body text-center">
+            <h5 class="mb-3">Print - {{ document.title }}</h5>
+
+            {% if preview_kind == 'image' %}
+                <img src="{{ file_url }}" alt="{{ document.filename }}" class="img-fluid" style="max-width:100%;">
+            {% elif preview_kind == 'pdf' %}
+                <iframe src="{{ file_url }}" style="width:100%;height:90vh;border:0;"></iframe>
+            {% else %}
+                <p>Download the document to print: <a href="{{ url_for('download_document', doc_id=document.id) }}">Download</a></p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Open print dialog once embedded content is ready
+function tryPrint() {
+    try {
+        // Call print and then close the window after printing
+        window.print();
+    } catch (e) {
+        console.error('Print failed:', e);
+    }
+}
+
+function closeAfterPrint() {
+    // Some browsers may block closing; try after a short delay
+    setTimeout(function() {
+        try { window.close(); } catch(e) { /* ignore */ }
+    }, 800);
+}
+
+window.addEventListener('load', function() {
+    var printed = false;
+
+    if ('{{ preview_kind }}' === 'image') {
+        var img = document.querySelector('img');
+        if (img) {
+            if (img.complete) {
+                tryPrint(); printed = true;
+            } else {
+                img.addEventListener('load', function() { tryPrint(); printed = true; });
+                img.addEventListener('error', function() { tryPrint(); printed = true; });
+            }
+        }
+    } else if ('{{ preview_kind }}' === 'pdf') {
+        var iframe = document.querySelector('iframe');
+        if (iframe) {
+            // Listen for iframe load event
+            iframe.addEventListener('load', function() { tryPrint(); printed = true; });
+            // Fallback: print after a short timeout if load doesn't fire
+            setTimeout(function() { if (!printed) { tryPrint(); printed = true; } }, 2000);
+        }
+    } else {
+        // For other types, nothing to embed; just trigger print
+        tryPrint(); printed = true;
+    }
+
+    // Ensure we always attempt to print after a maximum wait (fallback)
+    setTimeout(function() { if (!printed) { tryPrint(); printed = true; } }, 4000);
+
+    // Close window after print completes
+    window.onafterprint = closeAfterPrint;
+});
+</script>
+
+{% endblock %}

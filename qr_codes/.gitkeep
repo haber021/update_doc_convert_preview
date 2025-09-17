@@ -1,0 +1,2 @@
+# This file ensures the qr_codes directory is tracked by git
+# The qr_codes directory is used to store generated QR code images

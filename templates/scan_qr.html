@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Scan QR Code - QR Document Management System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card">
+                <div class="card-header text-center">
+                    <h4><i class="fas fa-camera me-2"></i>QR Code Scanner</h4>
+                    <p class="mb-0 text-muted">Scan a QR code to access document</p>
+                </div>
+                <div class="card-body">
+                    <!-- Scanner Controls -->
+                    <div class="text-center mb-3">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-md-6">
+                                <div class="input-group">
+                                    <label class="input-group-text" for="cameraSelect"><i class="fas fa-video"></i></label>
+                                    <select class="form-select" id="cameraSelect" disabled>
+                                        <option>Loading cameras…</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 d-flex justify-content-center justify-content-md-end gap-2">
+                                <button type="button" class="btn btn-secondary" id="torchBtn">
+                                    <i class="fas fa-lightbulb me-1"></i>Torch Off
+                                </button>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-primary" id="startScanBtn">
+                                        <i class="fas fa-play me-1"></i>Start Camera
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="stopScanBtn" disabled>
+                                        <i class="fas fa-stop me-1"></i>Stop Camera
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Camera Preview -->
+                    <div id="reader" style="width: 100%; min-height: 320px;" class="border rounded mb-3"></div>
+                    
+                    <!-- Manual QR Upload -->
+                    <div class="text-center mb-3">
+                        <p class="text-muted">Or upload a QR code image:</p>
+                        <input type="file" class="form-control" id="qrFile" accept="image/*">
+                    </div>
+                    
+                    <!-- Scanner Status -->
+                    <div id="scannerStatus" class="alert alert-info">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Click "Start Camera" to begin scanning QR codes
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scan Results -->
+    <div class="row justify-content-center mt-4">
+        <div class="col-md-8 col-lg-6">
+            <div id="scanResults" class="d-none">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-file-alt me-2"></i>Document Found</h5>
+                    </div>
+                    <div class="card-body" id="documentInfo">
+                        <!-- Document details will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Scans -->
+    <div class="row justify-content-center mt-4">
+        <div class="col-md-8 col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-history me-2"></i>How to Use QR Scanner</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Camera Scanning:</h6>
+                            <ol class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-1"></i> Click "Start Camera"</li>
+                                <li><i class="fas fa-check text-success me-1"></i> Point camera at QR code</li>
+                                <li><i class="fas fa-check text-success me-1"></i> Wait for automatic detection</li>
+                                <li><i class="fas fa-check text-success me-1"></i> View document details</li>
+                            </ol>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Image Upload:</h6>
+                            <ol class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-1"></i> Click "Choose File"</li>
+                                <li><i class="fas fa-check text-success me-1"></i> Select QR code image</li>
+                                <li><i class="fas fa-check text-success me-1"></i> Image is processed automatically</li>
+                                <li><i class="fas fa-check text-success me-1"></i> Access document instantly</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>Note:</strong> You can only access documents you have permission to view.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+{% endblock %}

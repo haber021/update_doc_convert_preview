@@ -1,0 +1,506 @@
+/* Custom CSS for QR Document Management System */
+
+/* Root variables for consistent theming */
+:root {
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --info-color: #0dcaf0;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --light-color: #f8f9fa;
+    --dark-color: #212529;
+}
+
+/* General Layout */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    /* Compatibility: support Chrome/Edge text-size-adjust */
+    text-size-adjust: 100%;
+}
+
+.container {
+    max-width: 1200px;
+}
+
+/* Navigation Enhancements */
+.navbar-brand {
+    font-weight: 600;
+    font-size: 1.25rem;
+}
+
+.navbar-nav .nav-link {
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.navbar-nav .nav-link:hover {
+    color: var(--primary-color) !important;
+}
+
+/* Card Enhancements */
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+    border-bottom: 1px solid rgba(var(--bs-primary-rgb), 0.2);
+    font-weight: 600;
+}
+
+/* Table Enhancements */
+.table-hover tbody tr:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+.table thead th {
+    border-bottom: 2px solid var(--primary-color);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 0.05em;
+    /* Compatibility: order match-parent before inherit for Safari */
+    text-align: -webkit-match-parent;
+    text-align: match-parent;
+    text-align: inherit;
+}
+
+/* Button Enhancements */
+.btn {
+    font-weight: 500;
+    border-radius: 0.375rem;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15);
+}
+
+.btn-group .btn {
+    transform: none;
+}
+
+.btn-group .btn:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Form Enhancements */
+.form-control, .form-select {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+/* Badge Enhancements */
+.badge {
+    font-weight: 500;
+    border-radius: 0.375rem;
+}
+
+/* Avatar Circle for User Lists */
+.avatar-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+/* QR Code Styling */
+.qr-code-container {
+    padding: 1rem;
+    background-color: white;
+    border-radius: 0.5rem;
+    display: inline-block;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Statistics Cards */
+.stats-card {
+    background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+    color: white;
+    border-radius: 0.75rem;
+    transition: transform 0.3s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+}
+
+/* File Upload Area */
+.file-upload-area {
+    border: 2px dashed #dee2e6;
+    border-radius: 0.5rem;
+    padding: 2rem;
+    text-align: center;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+    cursor: pointer;
+}
+
+.file-upload-area:hover {
+    border-color: var(--primary-color);
+    background-color: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+.file-upload-area.dragover {
+    border-color: var(--success-color);
+    background-color: rgba(var(--bs-success-rgb), 0.1);
+}
+
+/* Scanner Area */
+.scanner-container {
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background-color: #000;
+    position: relative;
+}
+
+.scanner-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200px;
+    height: 200px;
+    border: 2px solid var(--success-color);
+    border-radius: 0.5rem;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+/* Alert Enhancements */
+.alert {
+    border: none;
+    border-radius: 0.5rem;
+    border-left: 4px solid;
+}
+
+.alert-success {
+    border-left-color: var(--success-color);
+    background-color: rgba(var(--bs-success-rgb), 0.1);
+}
+
+.alert-info {
+    border-left-color: var(--info-color);
+    background-color: rgba(var(--bs-info-rgb), 0.1);
+}
+
+.alert-warning {
+    border-left-color: var(--warning-color);
+    background-color: rgba(var(--bs-warning-rgb), 0.1);
+}
+
+.alert-danger {
+    border-left-color: var(--danger-color);
+    background-color: rgba(var(--bs-danger-rgb), 0.1);
+}
+
+/* Dark theme: ensure alert text has strong contrast */
+[data-bs-theme="dark"] .alert-warning,
+[data-bs-theme="dark"] .alert-info,
+[data-bs-theme="dark"] .alert-success,
+[data-bs-theme="dark"] .alert-danger,
+[data-bs-theme="dark"] .alert-primary,
+[data-bs-theme="dark"] .alert-secondary,
+[data-bs-theme="dark"] .alert-light,
+[data-bs-theme="dark"] .alert-dark {
+    color: #f8f9fa !important; /* white text for dark theme */
+}
+
+/* Temporary access windows section */
+.temp-access-alert {
+    font-size: 0.95rem;
+}
+
+/* Dark theme background and text for temp access alert */
+[data-bs-theme="dark"] .temp-access-alert {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+    color: #f8f9fa !important;
+}
+
+/* Dark theme: countdown badge high-contrast */
+[data-bs-theme="dark"] .temp-access-alert .badge {
+    background-color: #111 !important;
+    color: #ffc107 !important;
+}
+
+/* Ensure label inside Temporary access windows and main alert text stand out */
+.temp-access-alert .section-title { font-weight: 600; }
+[data-bs-theme="dark"] .temp-access-alert .section-title { color: #f8f9fa !important; }
+
+/* Progress Bar Enhancements */
+.progress {
+    height: 0.75rem;
+    border-radius: 0.375rem;
+    background-color: rgba(var(--bs-secondary-rgb), 0.2);
+}
+
+.progress-bar {
+    border-radius: 0.375rem;
+    transition: width 0.6s ease;
+}
+
+/* Utility to replace inline styles */
+.inline-form { display: inline; }
+.qr-fixed-width { max-width: 200px; }
+.preview-thumb { max-height: 200px; object-fit: contain; }
+
+/* Modal Enhancements */
+.modal-content {
+    border: none;
+    border-radius: 0.75rem;
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+}
+
+.modal-header {
+    border-bottom: 1px solid rgba(var(--bs-border-color-rgb), 0.5);
+    padding: 1.5rem;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    border-top: 1px solid rgba(var(--bs-border-color-rgb), 0.5);
+    padding: 1.5rem;
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.spinner-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+/* Chart Container */
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin: 1rem 0;
+}
+
+/* Breadcrumb Enhancements */
+.breadcrumb {
+    background-color: transparent;
+    padding: 0;
+    margin-bottom: 1rem;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: var(--secondary-color);
+}
+
+/* Footer */
+footer {
+    margin-top: auto;
+    border-top: 1px solid rgba(var(--bs-border-color-rgb), 0.5);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        border-radius: 0.375rem !important;
+        margin-bottom: 0.25rem;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .navbar,
+    .btn,
+    .modal,
+    .alert,
+    footer {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #000 !important;
+        break-inside: avoid;
+    }
+    
+    .qr-code-container {
+        background-color: white !important;
+    }
+}
+
+/* Dark Theme Adjustments */
+[data-bs-theme="dark"] .avatar-circle {
+    background-color: var(--bs-primary);
+}
+
+[data-bs-theme="dark"] .file-upload-area {
+    background-color: var(--bs-dark);
+    border-color: var(--bs-secondary);
+}
+
+/* Ensure file input filename and inline text are visible on both light and dark backgrounds */
+.file-upload-area input[type="file"],
+.file-upload-area .form-control,
+.file-upload-area .custom-file-label,
+.file-upload-area .input-group-text {
+    color: #f1f3f5 !important;
+}
+
+[data-bs-theme="dark"] .file-upload-area input[type="file"],
+[data-bs-theme="dark"] .file-upload-area .form-control,
+[data-bs-theme="dark"] .file-upload-area .custom-file-label,
+[data-bs-theme="dark"] .file-upload-area .input-group-text {
+    color: #f1f3f5 !important;
+}
+
+/* Make sure placeholder/icons in the upload box are lighter */
+.file-upload-area .upload-placeholder,
+.file-upload-area .upload-icon {
+    color: rgba(241, 243, 245, 0.9) !important;
+}
+
+/* File preview card text visibility */
+#filePreview .card {
+    background-color: #f8f9fa; /* ensure preview card stays light */
+}
+
+#filePreview .card .card-title {
+    color: #212529 !important;
+}
+
+#previewContent {
+    color: #212529 !important;
+}
+
+[data-bs-theme="dark"] #filePreview .card {
+    /* Keep the preview card visibly light even in dark mode so content contrasts */
+    background-color: #f1f3f5 !important;
+}
+
+[data-bs-theme="dark"] #filePreview .card .card-title,
+[data-bs-theme="dark"] #previewContent {
+    color: #212529 !important;
+}
+
+/* Ensure muted text inside the standalone preview box is visible */
+.border.rounded.p-4.text-center.bg-light p.text-muted,
+.border.rounded.p-4.text-center.bg-light .text-muted {
+    color: #212529 !important;
+    opacity: 0.95 !important;
+}
+
+/* Also make any small/text-muted in the preview box visible */
+.border.rounded.p-4.text-center.bg-light small,
+.border.rounded.p-4.text-center.bg-light .small {
+    color: #495057 !important;
+}
+
+/* Ensure the size/type small text in the preview content is readable */
+#previewContent small.text-muted,
+#previewContent .text-muted,
+#previewContent small,
+#previewContent .small {
+    color: #6c757d !important; /* bootstrap secondary */
+    opacity: 1 !important;
+    font-weight: 400 !important;
+}
+
+[data-bs-theme="dark"] .qr-code-container {
+    background-color: white;
+}
+
+[data-bs-theme="dark"] .scanner-overlay {
+    border-color: var(--bs-success);
+}
+
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in-right {
+    animation: slideInRight 0.5s ease-out;
+}
+
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(50px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Utility Classes */
+.text-truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.shadow-soft {
+    box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.075) !important;
+}
+
+.border-primary-soft {
+    border-color: rgba(var(--bs-primary-rgb), 0.3) !important;
+}
+
+.bg-primary-soft {
+    background-color: rgba(var(--bs-primary-rgb), 0.1) !important;
+}

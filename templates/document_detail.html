@@ -1,0 +1,1181 @@
+{% extends "base.html" %}
+
+{% block title %}{{ document.title }} - QR Document Management System{% endblock %}
+
+{% block content %}
+<style>
+/* Owner Details: theme-friendly base background using Bootstrap variables */
+.owner-details {
+  background-color: var(--bs-body-bg, #f8f9fa);
+  border: 1px solid var(--bs-border-color, rgba(0,0,0,.125));
+  border-left: 4px solid var(--bs-primary, #0d6efd);
+  border-radius: .5rem;
+  color: var(--bs-body-color, #212529);
+}
+.owner-details dt,
+.owner-details dd { color: var(--bs-body-color, #212529) !important; }
+.owner-details .section-title { color: var(--bs-primary, #0d6efd) !important; }
+.owner-details i { color: var(--bs-primary, #0d6efd) !important; }
+/* Ensure text colored using .text-dark also follows theme body color */
+.owner-details .text-dark { color: var(--bs-body-color, #212529) !important; }
+.owner-address { white-space: pre-wrap; }
+.btn-group-flex { flex-wrap: wrap; gap: .5rem; }
+/* Readability for client-side DOCX preview */
+.docx-preview { background: var(--bs-body-bg, #fff); color: var(--bs-body-color, #212529); }
+.docx-preview p { line-height: 1.6; margin-bottom: .75rem; }
+.docx-preview h1, .docx-preview h2, .docx-preview h3, .docx-preview h4, .docx-preview h5, .docx-preview h6 { margin-top: 1rem; margin-bottom: .5rem; font-weight: 600; }
+.docx-preview table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+.docx-preview th, .docx-preview td { border: 1px solid var(--bs-border-color, rgba(0,0,0,.125)); padding: .5rem; }
+.docx-preview img { max-width: 100%; height: auto; }
+</style>
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h2><i class="fas fa-file-alt me-2"></i>{{ document.title }}</h2>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('documents') }}">Documents</a></li>
+                            <li class="breadcrumb-item active">{{ document.title }}</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div class="text-end">
+                    <div class="btn-group btn-group-flex" role="group">
+                        {% if has_email_grant or current_user.can_access_admin() %}
+                        <button class="btn btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#emailModal">
+                            <i class="fas fa-envelope me-1"></i>Email
+                        </button>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='email') }}" class="d-inline ms-2 request-access-form">
+                            <button type="submit" class="btn btn-outline-secondary" data-kind="email">
+                                <i class="fas fa-envelope me-1"></i>Request Email
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if has_download_grant or current_user.can_access_admin() %}
+                        <a href="{{ url_for('download_document', doc_id=document.id) }}" class="btn btn-success">
+                            <i class="fas fa-download me-1"></i>Download
+                        </a>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='download') }}" class="d-inline request-access-form">
+                            <button type="submit" class="btn btn-outline-success" data-kind="download">
+                                <i class="fas fa-download me-1"></i>Request Download
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if has_open_grant or current_user.can_access_admin() %}
+                        <button class="btn btn-outline-secondary ms-2" onclick="openPreview()">
+                            <i class="fas fa-eye me-1"></i>View Original Document
+                        </button>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='open') }}" class="d-inline ms-2 request-access-form">
+                            <button type="submit" class="btn btn-outline-secondary" data-kind="open">
+                                <i class="fas fa-external-link-alt me-1"></i>Request Open
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if has_print_grant or current_user.can_access_admin() %}
+                        <a href="{{ url_for('print_document', doc_id=document.id) }}" target="_blank" class="btn btn-outline-primary ms-2">
+                            <i class="fas fa-print me-1"></i>Print
+                        </a>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='print') }}" class="d-inline ms-2 request-access-form">
+                            <button type="submit" class="btn btn-outline-primary" data-kind="print">
+                                <i class="fas fa-print me-1"></i>Request Print
+                            </button>
+                        </form>
+                        {% endif %}
+                        {# Show Edit button for editable types when user has permission #}
+                        {% set _ext = (document.filename or '')|lower %}
+                        {% if can_edit %}
+                        <a href="{{ url_for('edit_document', doc_id=document.id) }}" class="btn btn-warning ms-2">
+                            <i class="fas fa-pen-to-square me-1"></i>Edit
+                        </a>
+                        {% endif %}
+                        {% if document.qr_code_path %}
+                        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#qrModal">
+                            <i class="fas fa-qrcode me-1"></i>QR Code
+                        </button>
+                        {% endif %}
+                        {% if not can_edit and not current_user.can_access_admin() %}
+                        <button type="button" class="btn btn-outline-warning ms-2" id="openRequestEditBtn" data-doc-id="{{ document.id }}">
+                            <i class="fas fa-user-pen me-1"></i><span class="req-edit-label">Request Edit</span>
+                        </button>
+                        {% endif %}
+                        {% if current_user.can_access_admin() or document.uploaded_by_id == current_user.id %}
+                            {% if current_user.can_access_admin() or has_update_grant %}
+                            <a href="{{ url_for('update_document', doc_id=document.id) }}" class="btn btn-outline-danger">
+                                <i class="fas fa-file-arrow-up me-1"></i>Update Doc
+                            </a>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='update') }}" class="d-inline request-access-form">
+                                <button type="submit" class="btn btn-outline-danger" data-kind="update">
+                                    <i class="fas fa-file-arrow-up me-1"></i>Request Update
+                                </button>
+                            </form>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Document Information -->
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle me-2"></i>Document Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Title:</dt>
+                                <dd class="col-sm-8">{{ document.title }}</dd>
+                                <dt class="col-sm-4">Document #:</dt>
+                                <dd class="col-sm-8">{{ document.document_number or ('#' ~ document.id) }}</dd>
+                                
+                                <dt class="col-sm-4">Type:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-secondary">{{ document.document_type.name }}</span>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Owner:</dt>
+                                <dd class="col-sm-8">
+                                    {{ document.owner.get_full_name() }}
+                                    {% if document.owner.student_id %}
+                                        <br><small class="text-muted">ID: {{ document.owner.student_id }}</small>
+                                    {% endif %}
+                                </dd>
+                                
+                                <dt class="col-sm-4">Uploaded by:</dt>
+                                <dd class="col-sm-8">{{ document.uploader.get_full_name() }}</dd>
+
+                                </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">File Name:</dt>
+                                <dd class="col-sm-8">{{ document.filename }}</dd>
+                                
+                                <dt class="col-sm-4">File Size:</dt>
+                                <dd class="col-sm-8">{{ (document.file_size / 1024 / 1024) | round(2) }} MB</dd>
+                                
+                                <dt class="col-sm-4">Upload Date:</dt>
+                                <dd class="col-sm-8">{{ document.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+                                
+                                <dt class="col-sm-4">Access Count:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-info">{{ document.access_count }} times</span>
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                    
+                    <!-- Owner Details -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="owner-details rounded-3 p-3 shadow-sm">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-id-card me-2 text-primary"></i>
+                                    <strong class="section-title">Owner Details</strong>
+                                </div>
+                                {% set od = document.owner_details %}
+                                {% if od %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <dl class="row mb-2">
+                                            <dt class="col-sm-4 text-dark fw-semibold">First Name:</dt>
+                                            <dd class="col-sm-8 text-dark">{{ od.first_name or '-' }}</dd>
+                                            <dt class="col-sm-4 text-dark fw-semibold">Middle Name:</dt>
+                                            <dd class="col-sm-8 text-dark">{{ od.middle_name or '-' }}</dd>
+                                        </dl>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <dl class="row mb-2">
+                                            <dt class="col-sm-4 text-dark fw-semibold">Last Name:</dt>
+                                            <dd class="col-sm-8 text-dark">{{ od.last_name or '-' }}</dd>
+                                            <dt class="col-sm-4 text-dark fw-semibold">Address:</dt>
+                                            <dd class="col-sm-8 text-dark text-break owner-address">{{ od.address or '-' }}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="text-muted small">No additional owner details provided.</div>
+                                {% endif %}
+
+                                <hr class="my-3">
+                                {% if current_user.can_access_admin() or has_owner_edit_grant %}
+                                <form method="POST" action="{{ url_for('update_owner_details', doc_id=document.id) }}" class="row g-2">
+                                    <div class="col-md-4">
+                                        <label for="owner_first_name" class="form-label small text-muted mb-1">First Name</label>
+                                        <input type="text" class="form-control" id="owner_first_name" name="owner_first_name" value="{{ (od.first_name if od else '') or '' }}" placeholder="First name">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="owner_middle_name" class="form-label small text-muted mb-1">Middle Name</label>
+                                        <input type="text" class="form-control" id="owner_middle_name" name="owner_middle_name" value="{{ (od.middle_name if od else '') or '' }}" placeholder="Middle name">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="owner_last_name" class="form-label small text-muted mb-1">Last Name</label>
+                                        <input type="text" class="form-control" id="owner_last_name" name="owner_last_name" value="{{ (od.last_name if od else '') or '' }}" placeholder="Last name">
+                                    </div>
+                                    <div class="col-12">
+                                        <label for="owner_address" class="form-label small text-muted mb-1">Address</label>
+                                        <textarea class="form-control" id="owner_address" name="owner_address" rows="2" placeholder="Street, Barangay, City/Province">{{ (od.address if od else '') or '' }}</textarea>
+                                    </div>
+                                    <div class="col-12 d-flex justify-content-end mt-2">
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-floppy-disk me-1"></i>Save Owner Info
+                                        </button>
+                                    </div>
+                                </form>
+                                {% if owner_edit_expiration and not current_user.can_access_admin() %}
+                                <div class="mt-2 small text-muted">
+                                    <i class="fas fa-clock me-1"></i>Owner info edit access expires at {{ owner_edit_expiration.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                                    <span id="ownerEditCountdown" class="ms-2 badge bg-dark text-warning"></span>
+                                </div>
+                                {% endif %}
+                                {% else %}
+                                <div class="mt-2">
+                                    {% if not current_user.can_access_admin() %}
+                                    <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='owner_edit') }}" class="d-inline request-access-form">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" data-kind="owner_edit">
+                                            <i class="fas fa-user-pen me-1"></i>Request Owner Info Edit
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- File Preview Area -->
+                    <div class="mt-4">
+                        <h6>File Preview</h6>
+                        <div class="border rounded p-4 text-center bg-light">
+                            {% if preview_kind == 'pdf' %}
+                                <i class="fas fa-file-pdf fa-4x text-danger mb-3"></i>
+                                <p class="text-muted">PDF Document - {{ document.filename }}</p>
+                                {% if has_open_grant or current_user.can_access_admin() %}
+                                <button class="btn btn-outline-primary" onclick="openPreview()">
+                                    <i class="fas fa-eye me-1"></i>View PDF
+                                </button>
+                                {% else %}
+                                <div class="alert alert-warning small mt-2">
+                                    Document view restricted. Request Open access to view the document.
+                                    <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='open') }}" class="d-inline ms-2 request-access-form">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" data-kind="open">
+                                            <i class="fas fa-external-link-alt me-1"></i>Request Access
+                                        </button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            {% elif preview_kind == 'image' %}
+                                {% if has_open_grant or current_user.can_access_admin() %}
+                                <!-- Inline thumbnail for images -->
+                                <img id="inlinePreviewImg" data-view-url="{{ url_for('view_document', doc_id=document.id) }}" alt="{{ document.filename }}" class="img-fluid mb-3 preview-thumb">
+                                <p class="text-muted">Image File - {{ document.filename }}</p>
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button class="btn btn-outline-primary" onclick="openPreview()">
+                                        <i class="fas fa-eye me-1"></i>View Image
+                                    </button>
+                                    <a href="{{ url_for('download_document', doc_id=document.id) }}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-download me-1"></i>Download File
+                                    </a>
+                                </div>
+                                {% else %}
+                                <i class="fas fa-image fa-4x text-secondary mb-3"></i>
+                                <p class="text-muted">Image File - {{ document.filename }}</p>
+                                <div class="alert alert-warning small mt-2">
+                                    Document view restricted. Request Open access to view the document.
+                                    <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='open') }}" class="d-inline ms-2 request-access-form">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" data-kind="open">
+                                            <i class="fas fa-external-link-alt me-1"></i>Request Access
+                                        </button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            {% elif preview_kind == 'word' %}
+                                <i class="fas fa-file-word fa-4x text-primary mb-3"></i>
+                                <p class="text-muted">Word Document - {{ document.filename }}</p>
+                                {% if has_open_grant or current_user.can_access_admin() %}
+                                <button class="btn btn-outline-primary" onclick="openPreview()">
+                                    <i class="fas fa-eye me-1"></i>View Document
+                                </button>
+                                {% else %}
+                                <div class="alert alert-warning small mt-2">
+                                    Document view restricted. Request Open access to view the document.
+                                    <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='open') }}" class="d-inline ms-2 request-access-form">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" data-kind="open">
+                                            <i class="fas fa-external-link-alt me-1"></i>Request Access
+                                        </button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                                <a href="{{ url_for('download_document', doc_id=document.id) }}" class="btn btn-outline-secondary ms-2">
+                                    <i class="fas fa-download me-1"></i>Download File
+                                </a>
+                            {% else %}
+                                <i class="fas fa-file fa-4x text-secondary mb-3"></i>
+                                <p class="text-muted">Document - {{ document.filename }}</p>
+                                <a href="{{ url_for('download_document', doc_id=document.id) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-download me-1"></i>Download File
+                                </a>
+                            {% endif %}
+                        </div>
+                        {% if can_edit %}
+                        <div class="text-center mt-3">
+                            <a href="{{ url_for('edit_document', doc_id=document.id) }}" class="btn btn-warning">
+                                <i class="fas fa-pen-to-square me-1"></i>Edit Document
+                            </a>
+                            {% if edit_expiration %}
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-hourglass-half me-1"></i>
+                                    Temporary edit access expires at {{ edit_expiration.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                                    <span id="editCountdown" class="ms-2 badge bg-secondary"></span>
+                                </small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        {% if download_expiration or print_expiration or update_expiration or email_expiration or open_expiration or owner_edit_expiration %}
+                        <div class="alert alert-warning temp-access-alert text-white mt-3 py-2">
+                            <div class="small section-title mb-1"><i class="fas fa-clock me-1"></i>Temporary access windows:</div>
+                            <div class="d-flex flex-wrap gap-3 small mb-0">
+                                {% if download_expiration %}
+                                <div>
+                                    <i class="fas fa-download me-1 text-success"></i>
+                                    Download expires at {{ download_expiration.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                                    <span id="downloadCountdown" class="ms-2 badge bg-dark text-warning"></span>
+                                </div>
+                                {% endif %}
+                                {% if print_expiration %}
+                                <div>
+                                    <i class="fas fa-print me-1 text-primary"></i>
+                                    Print expires at {{ print_expiration.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                                    <span id="printCountdown" class="ms-2 badge bg-dark text-warning"></span>
+                                </div>
+                                {% endif %}
+                                {% if update_expiration %}
+                                <div>
+                                    <i class="fas fa-file-arrow-up me-1 text-danger"></i>
+                                    Update expires at {{ update_expiration.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                                    <span id="updateCountdown" class="ms-2 badge bg-dark text-warning"></span>
+                                </div>
+                                {% endif %}
+                                {% if email_expiration %}
+                                <div>
+                                    <i class="fas fa-envelope me-1 text-secondary"></i>
+                                    Email expires at {{ email_expiration.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                                    <span id="emailCountdown" class="ms-2 badge bg-dark text-warning"></span>
+                                </div>
+                                {% endif %}
+                                {% if open_expiration %}
+                                <div>
+                                    <i class="fas fa-eye me-1 text-secondary"></i>
+                                    Preview expires at {{ open_expiration.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                                    <span id="openCountdown" class="ms-2 badge bg-dark text-warning"></span>
+                                </div>
+                                {% endif %}
+                                {% if owner_edit_expiration %}
+                                <div>
+                                    <i class="fas fa-user-pen me-1 text-warning"></i>
+                                    Owner info edit expires at {{ owner_edit_expiration.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                                    <span id="ownerEditCountdownInline" class="ms-2 badge bg-dark text-warning"></span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- QR Code Card -->
+            {% if document.qr_code_path %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6><i class="fas fa-qrcode me-2"></i>QR Code Access</h6>
+                </div>
+                <div class="card-body text-center">
+                    <img src="{{ url_for('static', filename=document.qr_code_path) }}" 
+                        alt="QR Code for {{ document.title }}" class="img-fluid mb-3 qr-fixed-width">
+                    <p class="small text-muted">Document: <strong>{{ document.document_number or ('#' ~ document.id) }}</strong></p>
+                    <div class="d-flex justify-content-center gap-2">
+                        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('download_qr', doc_id=document.id) }}">
+                            <i class="fas fa-download me-1"></i>Download QR
+                        </a>
+                        {% if current_user.can_access_admin() or document.uploaded_by_id == current_user.id %}
+                        <form method="POST" action="{{ url_for('regenerate_qr', doc_id=document.id) }}" class="inline-form">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-sync-alt me-1"></i>Regenerate QR
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Document Statistics -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6><i class="fas fa-chart-line me-2"></i>Document Statistics</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Total Accesses:</span>
+                        <span class="badge bg-primary">{{ document.access_count }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Days Since Upload:</span>
+                        <span class="badge bg-info">{{ days_since_created }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Last Modified:</span>
+                        <span class="badge bg-secondary">{{ document.updated_at.strftime('%Y-%m-%d') }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Status:</span>
+                        <span class="badge bg-{{ 'success' if document.is_active else 'danger' }}">
+                            {{ 'Active' if document.is_active else 'Inactive' }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Related Documents -->
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-folder me-2"></i>Related Documents</h6>
+                </div>
+                <div class="card-body">
+                    {% if related_docs %}
+                        {% for related in related_docs %}
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-file text-primary me-2"></i>
+                            <div class="flex-grow-1">
+                                <a href="{{ url_for('document_detail', doc_id=related.id) }}" class="text-decoration-none">
+                                    <small>{{ related.title[:30] }}{% if related.title|length > 30 %}...{% endif %}</small>
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted small">No related documents found</p>
+                    {% endif %}
+                    
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('documents', search=document.owner.get_full_name()) }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-search me-1"></i>View All from Owner
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QR Code Modal -->
+{% if document.qr_code_path %}
+<div class="modal fade" id="qrModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">QR Code - {{ document.title }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" title="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img src="{{ url_for('static', filename=document.qr_code_path) }}" 
+                    alt="QR Code" class="img-fluid mb-3">
+                <p class="small text-muted">{{ document.document_number or ('#' ~ document.id) }}</p>
+                <div class="d-grid">
+                    <a class="btn btn-primary" href="{{ url_for('download_qr', doc_id=document.id) }}">
+                        <i class="fas fa-download me-1"></i>Download QR Code
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Preview - {{ document.filename }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" title="Close"></button>
+            </div>
+            <div class="modal-body" id="previewBody">
+                <!-- dynamic content inserted here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Email Modal -->
+<div class="modal fade" id="emailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('send_document_email', doc_id=document.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Email Document - {{ document.title }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" title="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="recipients" class="form-label">Recipient Email(s) *
+                            <small class="text-muted">(separate multiple emails with comma)</small>
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="recipients" name="recipients" placeholder="alice@example.com, bob@example.com" required>
+                            <button type="button" class="btn btn-outline-secondary" id="fillOwner" title="Fill owner's email">Owner</button>
+                            <button type="button" class="btn btn-outline-secondary" id="fillUploader" title="Fill uploader's email">Uploader</button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="subject" class="form-label">Subject</label>
+                        <input type="text" class="form-control" id="subject" name="subject" value="Document shared: {{ document.title }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Message (optional)</label>
+                        <textarea class="form-control" id="message" name="message" rows="4"></textarea>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" value="yes" id="include_details" name="include_details" checked>
+                        <label class="form-check-label" for="include_details">Include document details (ID, title, owner, uploader)</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" value="yes" id="attach" name="attach">
+                        <label class="form-check-label" for="attach">Attach file to email (if available)</label>
+                    </div>
+                    <div id="emailStatus" class="alert alert-info d-none" role="alert">
+                        <i class="fas fa-paper-plane me-1"></i>
+                        Sending email... please wait
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-outline-secondary" id="openMailClient">Open in Email App</button>
+                    <button type="submit" class="btn btn-primary" id="sendEmailBtn">
+                        <span class="spinner-border spinner-border-sm me-1 d-none" role="status" aria-hidden="true"></span>
+                        Send Email
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% if not can_edit and not current_user.can_access_admin() %}
+<!-- Request Edit Modal -->
+<div class="modal fade" id="requestEditModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('request_edit_access', doc_id=document.id) }}" id="requestEditForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Request Edit Access</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" title="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Provide a brief reason for requesting edit access to this document.</p>
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">Reason</label>
+                        <textarea class="form-control" id="reason" name="reason" rows="4" maxlength="500" placeholder="Example: Need to correct a typo in the file."></textarea>
+                    </div>
+                    <div id="requestEditStatus" class="alert alert-info d-none" role="alert">
+                        <i class="fas fa-paper-plane me-1"></i>
+                        Sending request... please wait
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="sendRequestBtn">
+                        <span class="spinner-border spinner-border-sm me-1 d-none" role="status" aria-hidden="true"></span>
+                        Send Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+
+{% block scripts %}
+<!-- Client-side DOCX renderer -->
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script>
+function confirmDelete() {
+    if (confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
+        // In a real implementation, this would send a DELETE request
+        alert('Document deletion functionality would be implemented here');
+    }
+}
+
+function openPreview() {
+    const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+    const previewBody = document.getElementById('previewBody');
+
+    // Clear previous content
+    previewBody.innerHTML = '';
+
+    // Add file size info
+    const sizeDiv = document.createElement('div');
+    sizeDiv.className = 'mb-2 text-muted';
+    sizeDiv.innerHTML = '<small>File Size: {{ (document.file_size / 1024 / 1024) | round(2) }} MB</small>';
+    previewBody.appendChild(sizeDiv);
+
+    // Determine how to render based on server-provided preview kind
+    const previewKind = {{ preview_kind | tojson }};
+    const filename = {{ (document.filename or "") | tojson }};
+    // Build both relative and absolute URLs; absolute is needed for Office viewer
+    const viewUrlRel = {{ url_for("view_document", doc_id=document.id) | tojson }};
+    const viewUrlAbs = {{ url_for("view_document", doc_id=document.id, _external=True) | tojson }};
+    const pdfUrlRel = {{ url_for("document_pdf", doc_id=document.id) | tojson }};
+    const publicViewAbs = {{ (public_view_url or "") | tojson }}; // short-lived signed URL for external viewers
+    const cacheBust = '?_ts=' + new Date().getTime();
+    const hasOpenGrant = {{ (has_open_grant or current_user.can_access_admin()) | tojson }};
+
+    // If user lacks Open grant, present inline request UI and stop
+    if (!hasOpenGrant) {
+        const al = document.createElement('div');
+        al.className = 'alert alert-warning';
+        al.innerHTML = `Document view is restricted. Please request Open access to view the document.
+            <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='open') }}" class="d-inline ms-2 request-access-form">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" data-kind="open">
+                    <i class="fas fa-external-link-alt me-1"></i>Request Access
+                </button>
+            </form>`;
+        previewBody.appendChild(al);
+        previewModal.show();
+        return;
+    }
+
+    if (previewKind === 'image') {
+        const img = document.createElement('img');
+        img.src = viewUrlRel + cacheBust;
+        img.className = 'img-fluid';
+        previewBody.appendChild(img);
+    } else if (previewKind === 'pdf') {
+        const iframe = document.createElement('iframe');
+        iframe.src = viewUrlRel + cacheBust;
+        iframe.style.width = '100%';
+        iframe.style.height = '70vh';
+        iframe.frameBorder = 0;
+        previewBody.appendChild(iframe);
+    } else if (previewKind === 'word') {
+        // Client-side preview for DOCX using Mammoth; for legacy .doc, use server-side PDF iframe
+        const ext = (filename || '').toLowerCase().split('.').pop();
+        if (ext === 'docx' && window.mammoth) {
+            const spinner = document.createElement('div');
+            spinner.className = 'text-center my-3';
+            spinner.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
+            previewBody.appendChild(spinner);
+
+            const rawUrl = viewUrlRel + (viewUrlRel.indexOf('?') === -1 ? '?' : '&') + 'raw=1&_ts=' + Date.now();
+            fetch(rawUrl, { credentials: 'same-origin' })
+                .then(function(resp){ if (!resp.ok) throw new Error('Failed to fetch DOCX'); return resp.arrayBuffer(); })
+                .then(function(ab){
+                    return window.mammoth.convertToHtml(
+                        { arrayBuffer: ab },
+                        {
+                            styleMap: [
+                                "p[style-name='Title'] => h1:fresh",
+                                "p[style-name='Subtitle'] => h2:fresh",
+                                "p[style-name='Heading 1'] => h1:fresh",
+                                "p[style-name='Heading 2'] => h2:fresh",
+                                "p[style-name='Heading 3'] => h3:fresh"
+                            ],
+                            convertImage: window.mammoth.images.inline(function(image){
+                                return image.read('base64').then(function(imageBuffer){
+                                    return { src: 'data:' + image.contentType + ';base64,' + imageBuffer };
+                                });
+                            })
+                        }
+                    );
+                })
+                .then(function(result){
+                    try { spinner.remove(); } catch(_){ }
+                    // Inject scoped styles for better readability on dark theme
+                    (function(){
+                        const styleId = 'docxPreviewStyles';
+                        if (!document.getElementById(styleId)) {
+                            const st = document.createElement('style');
+                            st.id = styleId;
+                            st.innerHTML = `
+                            .docx-preview { background:#ffffff !important; color:#111 !important; font: 15px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif !important; opacity: 1 !important; mix-blend-mode: normal !important; }
+                            .docx-preview * { box-sizing: border-box; color:#111 !important; text-shadow: none !important; }
+                            .docx-preview h1, .docx-preview h2, .docx-preview h3, .docx-preview h4, .docx-preview h5, .docx-preview h6 { color:#111 !important; font-weight:600; margin: 0.6em 0 0.4em; }
+                            .docx-preview p, .docx-preview span, .docx-preview li, .docx-preview div { color:#111 !important; }
+                            .docx-preview a { color:#0d6efd !important; text-decoration: none; }
+                            .docx-preview a:hover { text-decoration: underline; }
+                            .docx-preview ul, .docx-preview ol { padding-left: 1.4em; margin: 0 0 0.8em; }
+                            .docx-preview img { max-width: 100%; height: auto; display: inline-block; background:#fff !important; }
+                            .docx-preview table { width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem; background:#fff !important; }
+                            .docx-preview th, .docx-preview td { border: 1px solid #dee2e6; padding: 6px 8px; color:#111 !important; background:#fff !important; }
+                            .docx-preview blockquote { margin: 0 0 0.8em; padding: 0.5em 1em; border-left: 4px solid #ced4da; background: #f8f9fa !important; color:#212529 !important; }
+                            .docx-preview code, .docx-preview pre { background:#f8f9fa !important; color:#212529 !important; border-radius:4px; padding:2px 4px; }
+                            `;
+                            document.head.appendChild(st);
+                        }
+                    })();
+                    const container = document.createElement('div');
+                    container.style.maxHeight = '70vh';
+                    container.style.overflow = 'auto';
+                    container.className = 'docx-preview border rounded p-3';
+                    container.innerHTML = result.value;
+                    previewBody.appendChild(container);
+                })
+                .catch(function(){
+                    try { spinner.remove(); } catch(_){ }
+                    const note = document.createElement('div');
+                    note.className = 'alert alert-warning';
+                    note.innerHTML = 'Unable to render DOCX in the browser. You can still <a href="' + (viewUrlRel + cacheBust) + '" target="_blank">open/download the document</a>.';
+                    previewBody.appendChild(note);
+                });
+        } else {
+            // Legacy .doc: rely on server-side conversion to PDF and iframe it
+            const iframe = document.createElement('iframe');
+            iframe.src = pdfUrlRel + cacheBust;
+            iframe.style.width = '100%';
+            iframe.style.height = '70vh';
+            iframe.frameBorder = 0;
+            previewBody.appendChild(iframe);
+            const note = document.createElement('div');
+            note.className = 'mt-2 text-muted small';
+            note.innerHTML = 'Rendered via server conversion to PDF. If it fails, use Download.';
+            previewBody.appendChild(note);
+        }
+    } else {
+        // For unsupported types, attempt to display inline using embed; browser will handle display or download
+        const embed = document.createElement('embed');
+        embed.src = viewUrlRel + cacheBust;
+        embed.style.width = '100%';
+        embed.style.height = '70vh';
+        embed.type = 'application/pdf';
+        previewBody.appendChild(embed);
+    }
+
+    previewModal.show();
+}
+
+// Fill inline image preview on page load (if present)
+document.addEventListener('DOMContentLoaded', function() {
+    const img = document.getElementById('inlinePreviewImg');
+    if (img) {
+        const viewUrl = img.getAttribute('data-view-url') + '?_ts=' + new Date().getTime();
+        img.src = viewUrl;
+    }
+
+    // Edit grant countdown
+    (function(){
+        const el = document.getElementById('editCountdown');
+        {% if edit_expiration %}
+        const expiresAt = new Date({{ (edit_expiration.strftime('%Y-%m-%dT%H:%M:%SZ'))|tojson }}).getTime();
+        function tick() {
+            const now = Date.now();
+            let diff = Math.max(0, Math.floor((expiresAt - now)/1000));
+            const m = Math.floor(diff/60);
+            const s = diff%60;
+            if (el) el.textContent = (diff>0) ? (m + 'm ' + String(s).padStart(2,'0') + 's') : 'expired';
+        }
+        tick();
+        setInterval(tick, 1000);
+        {% endif %}
+    })();
+
+    // Download/Print/Update grant countdowns
+    (function(){
+        {% if download_expiration %}
+        (function(){
+            const el = document.getElementById('downloadCountdown');
+            const exp = new Date({{ (download_expiration.strftime('%Y-%m-%dT%H:%M:%SZ'))|tojson }}).getTime();
+            function tick(){
+                const d = Math.max(0, Math.floor((exp - Date.now())/1000));
+                const m = Math.floor(d/60), s = d%60;
+                if (el) el.textContent = d>0 ? (m + 'm ' + String(s).padStart(2,'0') + 's') : 'expired';
+            }
+            tick(); setInterval(tick, 1000);
+        })();
+        {% endif %}
+        {% if print_expiration %}
+        (function(){
+            const el = document.getElementById('printCountdown');
+            const exp = new Date({{ (print_expiration.strftime('%Y-%m-%dT%H:%M:%SZ'))|tojson }}).getTime();
+            function tick(){
+                const d = Math.max(0, Math.floor((exp - Date.now())/1000));
+                const m = Math.floor(d/60), s = d%60;
+                if (el) el.textContent = d>0 ? (m + 'm ' + String(s).padStart(2,'0') + 's') : 'expired';
+            }
+            tick(); setInterval(tick, 1000);
+        })();
+        {% endif %}
+        {% if update_expiration %}
+        (function(){
+            const el = document.getElementById('updateCountdown');
+            const exp = new Date({{ (update_expiration.strftime('%Y-%m-%dT%H:%M:%SZ'))|tojson }}).getTime();
+            function tick(){
+                const d = Math.max(0, Math.floor((exp - Date.now())/1000));
+                const m = Math.floor(d/60), s = d%60;
+                if (el) el.textContent = d>0 ? (m + 'm ' + String(s).padStart(2,'0') + 's') : 'expired';
+            }
+            tick(); setInterval(tick, 1000);
+        })();
+        {% endif %}
+        {% if email_expiration %}
+        (function(){
+            const el = document.getElementById('emailCountdown');
+            const exp = new Date({{ (email_expiration.strftime('%Y-%m-%dT%H:%M:%SZ'))|tojson }}).getTime();
+            function tick(){
+                const d = Math.max(0, Math.floor((exp - Date.now())/1000));
+                const m = Math.floor(d/60), s = d%60;
+                if (el) el.textContent = d>0 ? (m + 'm ' + String(s).padStart(2,'0') + 's') : 'expired';
+            }
+            tick(); setInterval(tick, 1000);
+        })();
+        {% endif %}
+        {% if open_expiration %}
+        (function(){
+            const el = document.getElementById('openCountdown');
+            const exp = new Date({{ (open_expiration.strftime('%Y-%m-%dT%H:%M:%SZ'))|tojson }}).getTime();
+            const docId = {{ document.id }};
+            function tick(){
+                const d = Math.max(0, Math.floor((exp - Date.now())/1000));
+                const m = Math.floor(d/60), s = d%60;
+                if (el) el.textContent = d>0 ? (m + 'm ' + String(s).padStart(2,'0') + 's') : 'expired';
+                if (d <= 0 && !window.__openExpiredNotified) {
+                    window.__openExpiredNotified = true;
+                    try { localStorage.removeItem(`req:${docId}:open`); } catch(e) {}
+                    alert('Your preview access has expired. You can request Open access again.');
+                }
+            }
+            tick(); setInterval(tick, 1000);
+        })();
+        {% endif %}
+        {% if owner_edit_expiration %}
+        (function(){
+            const el1 = document.getElementById('ownerEditCountdown');
+            const el2 = document.getElementById('ownerEditCountdownInline');
+            const exp = new Date({{ (owner_edit_expiration.strftime('%Y-%m-%dT%H:%M:%SZ'))|tojson }}).getTime();
+            function tick(){
+                const d = Math.max(0, Math.floor((exp - Date.now())/1000));
+                const m = Math.floor(d/60), s = d%60;
+                const txt = d>0 ? (m + 'm ' + String(s).padStart(2,'0') + 's') : 'expired';
+                if (el1) el1.textContent = txt;
+                if (el2) el2.textContent = txt;
+            }
+            tick(); setInterval(tick, 1000);
+        })();
+        {% endif %}
+    })();
+    
+    // Intercept Request Download/Print/Update forms: prevent duplicates, show spinner, persist requested state
+    (function(){
+        const docId = {{ document.id }};
+        // Server-informed unresolved request map to allow re-request after admin rejection
+        const unresolved = {{ (unresolved_requests or {})|tojson }};
+        function nounFor(kind){
+            if (kind === 'download') return 'Download';
+            if (kind === 'print') return 'Print';
+            if (kind === 'update') return 'Update';
+            if (kind === 'open') return 'Open';
+            if (kind === 'email') return 'Email';
+            if (kind === 'owner_edit') return 'Owner Edit';
+            return 'Request';
+        }
+        function markRequested(btn, label){
+            btn.className = 'btn btn-secondary';
+            btn.innerHTML = `<i class="fas fa-check me-1"></i>${label} requested`;
+            btn.disabled = true;
+            btn.dataset.requested = '1';
+        }
+        function onSubmit(e){
+            e.preventDefault();
+            const form = e.currentTarget;
+            const btn = form.querySelector('button[type="submit"]');
+            if (!btn) return form.submit();
+            const kind = (btn.getAttribute('data-kind') || '').toLowerCase();
+            const label = nounFor(kind);
+            const key = `req:${docId}:${kind}`;
+            // If already requested, show message and block
+            if (btn.dataset.requested === '1' || localStorage.getItem(key) === '1') {
+                alert(`You have already requested ${label.toLowerCase()}. Please wait for administrator approval.`);
+                return false;
+            }
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.classList.add('disabled');
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Requesting...';
+            fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(resp => {
+                    if (!resp.ok) throw new Error('Request failed');
+                    // Persist state and update UI
+                    localStorage.setItem(key, '1');
+                    markRequested(btn, label);
+                })
+                .catch(err => {
+                    // restore on failure
+                    btn.innerHTML = originalHTML;
+                    btn.disabled = false;
+                    btn.classList.remove('disabled');
+                    alert('Failed to send request. Please try again.');
+                });
+        }
+        document.querySelectorAll('form.request-access-form').forEach(f => {
+            const btn = f.querySelector('button[type="submit"]');
+            if (!btn) return;
+            const kind = (btn.getAttribute('data-kind') || '').toLowerCase();
+            const label = nounFor(kind);
+            const key = `req:${docId}:${kind}`;
+            // Clear stale client-side locks when server shows no unresolved request for this kind
+            try {
+                if (unresolved && unresolved[kind] === false) {
+                    localStorage.removeItem(key);
+                }
+            } catch (e) {}
+            // If this is the Open request and there is no active grant, also clear any stale lock so user can re-request
+            if (kind === 'open') {
+                const hasOpenGrant = {{ 'true' if has_open_grant or current_user.can_access_admin() else 'false' }};
+                if (!hasOpenGrant) {
+                    try { localStorage.removeItem(key); } catch(e) {}
+                }
+            }
+            // Initialize UI if already requested in this browser
+            if (localStorage.getItem(key) === '1' || btn.dataset.requested === '1') {
+                markRequested(btn, label);
+            }
+            f.addEventListener('submit', onSubmit);
+        });
+    })();
+
+    // Email modal helpers
+    const fillOwner = document.getElementById('fillOwner');
+    const fillUploader = document.getElementById('fillUploader');
+    const recipients = document.getElementById('recipients');
+    const includeDetails = document.getElementById('include_details');
+    const messageBox = document.getElementById('message');
+    const openMailClient = document.getElementById('openMailClient');
+
+    if (fillOwner) {
+        fillOwner.addEventListener('click', function() {
+            const email = '{{ document.owner.email if document.owner and document.owner.email else "" }}';
+            if (email) recipients.value = email;
+        });
+    }
+    
+    if (fillUploader) {
+        fillUploader.addEventListener('click', function() {
+            const email = '{{ document.uploader.email if document.uploader and document.uploader.email else "" }}';
+            if (email) recipients.value = email;
+        });
+    }
+
+    if (includeDetails && messageBox) {
+        includeDetails.addEventListener('change', function() {
+            if (this.checked && (!messageBox.value || messageBox.value.trim() === '')) {
+                const summary = `Document: {{ document.title }}\nDocument ID: {{ document.document_number or ('#' ~ document.id) }}\nOwner: {{ document.owner.get_full_name() }}\nUploaded by: {{ document.uploader.get_full_name() }}`;
+                messageBox.value = summary;
+            }
+        });
+        
+        // On modal open, prefill if checked and empty
+        var emailModal = document.getElementById('emailModal');
+        if (emailModal) {
+            emailModal.addEventListener('show.bs.modal', function () {
+                if (includeDetails.checked && (!messageBox.value || messageBox.value.trim() === '')) {
+                    const summary = `Document: {{ document.title }}\nDocument ID: {{ document.document_number or ('#' ~ document.id) }}\nOwner: {{ document.owner.get_full_name() }}\nUploaded by: {{ document.uploader.get_full_name() }}`;
+                    messageBox.value = summary;
+                }
+            });
+        }
+    }
+    
+    if (openMailClient) {
+        openMailClient.addEventListener('click', function() {
+            const to = document.getElementById('recipients').value;
+            const subject = document.getElementById('subject').value;
+            let body = document.getElementById('message').value;
+            
+            // Add document details if checkbox is checked
+            if (document.getElementById('include_details').checked) {
+                body += `\n\nDocument: {{ document.title }}\nDocument ID: {{ document.document_number or ('#' ~ document.id) }}\nOwner: {{ document.owner.get_full_name() }}\nUploaded by: {{ document.uploader.get_full_name() }}`;
+            }
+            
+            // Add view link
+            body += `\nView link: {% if document.document_number %}{{ url_for('qr_landing_by_code', code=document.document_number, _external=True) }}{% else %}{{ url_for('qr_landing', doc_id=document.id, _external=True) }}{% endif %}`;
+            
+            // Build mailto URL
+            const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            
+            // Open mail client
+            window.open(mailtoUrl, '_blank');
+        });
+    }
+
+    // Send Email submit loading indicator
+    (function(){
+        const emailModal = document.getElementById('emailModal');
+        if (!emailModal) return;
+        const form = emailModal.querySelector('form');
+        if (!form) return;
+        const sendBtn = document.getElementById('sendEmailBtn');
+        const openBtn = document.getElementById('openMailClient');
+        const cancelBtn = emailModal.querySelector('.modal-footer .btn.btn-secondary');
+        const status = document.getElementById('emailStatus');
+        form.addEventListener('submit', function(){
+            try {
+                if (sendBtn) {
+                    sendBtn.disabled = true; sendBtn.classList.add('disabled');
+                    sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Sending...';
+                }
+                if (openBtn) { openBtn.disabled = true; openBtn.classList.add('disabled'); }
+                if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.classList.add('disabled'); }
+                if (status) {
+                    status.classList.remove('d-none','alert-danger','alert-success');
+                    status.classList.add('alert-info');
+                    status.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Sending email... please wait';
+                }
+            } catch (e) { /* noop */ }
+            // Allow normal form submission to proceed
+        });
+    })();
+});
+
+// Update access count display (optional - for real-time updates)
+function updateAccessCount() {
+    // This could periodically check for updated access count
+    // via AJAX if real-time updates are desired
+}
+// Open Request Edit modal only when markup is present (avoid missing target errors)
+document.addEventListener('DOMContentLoaded', function() {
+    const openBtn = document.getElementById('openRequestEditBtn');
+    const docId = {{ document.id }};
+    const reqEditKey = `reqedit:${docId}`;
+    const __unresolved = {{ (unresolved_requests or {})|tojson }};
+    // If server says no unresolved edit request, clear client lock to allow re-request
+    try { if (__unresolved && __unresolved.edit === false) localStorage.removeItem(reqEditKey); } catch(e) {}
+
+    function setRequestedState(btn) {
+        if (!btn) return;
+        btn.classList.remove('btn-outline-warning');
+        btn.classList.add('btn-secondary');
+        btn.disabled = true;
+        const label = btn.querySelector('.req-edit-label');
+        if (label) label.textContent = 'Requested'; else btn.textContent = 'Requested';
+        btn.setAttribute('title', 'Edit access already requested');
+    }
+
+    if (openBtn) {
+        // Initialize requested state from localStorage
+        if (localStorage.getItem(reqEditKey) === '1') {
+            setRequestedState(openBtn);
+        }
+        openBtn.addEventListener('click', function() {
+            // Block opening if already requested
+            if (localStorage.getItem(reqEditKey) === '1' || openBtn.disabled) {
+                alert('You have already requested edit access. Please wait for administrator approval.');
+                return;
+            }
+            const modalEl = document.getElementById('requestEditModal');
+            if (modalEl && window.bootstrap && bootstrap.Modal) {
+                const inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                inst.show();
+            } else {
+                alert('Request form is not available. Please reload the page.');
+            }
+        });
+    }
+
+    const form = document.getElementById('requestEditForm');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('sendRequestBtn');
+        const spinner = btn ? btn.querySelector('.spinner-border') : null;
+        const status = document.getElementById('requestEditStatus');
+        // Disable controls to prevent double submit
+        if (btn) { btn.disabled = true; btn.classList.add('disabled'); }
+        const modalContent = form.closest('.modal-content');
+        if (modalContent) {
+            const cancelBtn = modalContent.querySelector('.modal-footer .btn-secondary');
+            if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.classList.add('disabled'); }
+        }
+        // Show spinner and status
+        if (spinner) { spinner.classList.remove('d-none'); }
+        if (status) {
+            status.classList.remove('d-none');
+            status.classList.remove('alert-success', 'alert-danger');
+            status.classList.add('alert-info');
+            status.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Sending request... please wait';
+        }
+        // Submit via fetch
+        fetch(form.action, {
+            method: 'POST',
+            body: new FormData(form),
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function(resp) {
+            // Treat any 2xx as success; server may redirect, but AJAX handles it
+            if (!resp.ok) throw new Error('Request failed');
+            return resp.text();
+        }).then(function() {
+            // Persist requested state and update UI
+            localStorage.setItem(reqEditKey, '1');
+            const openBtn = document.getElementById('openRequestEditBtn');
+            setRequestedState(openBtn);
+            if (status) {
+                status.classList.remove('alert-info');
+                status.classList.add('alert-success');
+                status.innerHTML = '<i class="fas fa-check-circle me-1"></i> Request sent to administrators.';
+            }
+            if (btn) { btn.innerText = 'Sent'; }
+            // Optionally close after a delay without reloading to keep the requested state
+            setTimeout(function() {
+                const modalEl = document.getElementById('requestEditModal');
+                try {
+                    if (modalEl && window.bootstrap && bootstrap.Modal) {
+                        const existing = bootstrap.Modal.getInstance(modalEl);
+                        if (existing) { existing.hide(); }
+                    }
+                } catch (_) {}
+            }, 1000);
+        }).catch(function(err) {
+            if (status) {
+                status.classList.remove('alert-info');
+                status.classList.add('alert-danger');
+                status.innerHTML = '<i class="fas fa-times-circle me-1"></i> Failed to send request. Please try again.';
+            }
+            if (btn) {
+                if (spinner) spinner.classList.add('d-none');
+                btn.disabled = false; btn.classList.remove('disabled');
+            }
+            const modalContent = form.closest('.modal-content');
+            if (modalContent) {
+                const cancelBtn = modalContent.querySelector('.modal-footer .btn-secondary');
+                if (cancelBtn) { cancelBtn.disabled = false; cancelBtn.classList.remove('disabled'); }
+            }
+        });
+    });
+});
+
+// Guard: prevent Bootstrap from initializing a modal when the target element is missing
+// Use capture phase and stopImmediatePropagation to intercept before Bootstrap's handlers
+// Removed global guard since Request Edit opens via JS now to avoid Bootstrap misfires
+</script>
+{% endblock %}

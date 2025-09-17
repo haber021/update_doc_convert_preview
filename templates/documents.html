@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Documents - QR Document Management System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <style>
+        /* Responsive table readability tweaks */
+        .table thead th.nowrap { white-space: nowrap; }
+        .td-nowrap { white-space: nowrap; }
+        .truncate { max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: bottom; }
+        @media (max-width: 1200px) { .truncate { max-width: 140px; } }
+        @media (max-width: 992px) { .truncate { max-width: 110px; } }
+        .wrap { white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
+    </style>
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-folder me-2"></i>Document Management</h2>
+                    <p class="text-muted mb-0">Manage and search through documents</p>
+                </div>
+                {% if current_user.can_upload_documents() %}
+                <a href="{{ url_for('upload_document') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Upload Document
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="GET" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Search Documents</label>
+                            <input type="text" class="form-control" id="search" name="search" 
+                                   placeholder="Search by title, owner, or ID..." value="{{ search }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="type" class="form-label">Document Type</label>
+                            <select class="form-select" id="type" name="type">
+                                <option value="">All Types</option>
+                                {% for doc_type in document_types %}
+                                    <option value="{{ doc_type.id }}" 
+                                            {% if doc_type.id|string == doc_type_filter %}selected{% endif %}>
+                                        {{ doc_type.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                                <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-search me-1"></i>Search
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Documents Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>Documents 
+                        <span class="badge bg-secondary">{{ documents.total }}</span>
+                    </h5>
+                    {% if documents.pages > 1 %}
+                    <small class="text-muted">
+                        Page {{ documents.page }} of {{ documents.pages }}
+                    </small>
+                    {% endif %}
+                </div>
+                <div class="card-body p-0">
+                    {% if documents.items %}
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm mb-0 align-middle">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th class="nowrap">Doc ID</th>
+                                        <th>Document</th>
+                                        <th class="nowrap">Type</th>
+                                                                                <th>Owner First Name</th>
+                                        <th>Owner Middle Name</th>
+                                        <th>Owner Last Name</th>
+                                        <th>Uploader First Name</th>
+                                        <th>Uploader Middle Name</th>
+                                        <th>Uploader Last Name</th>
+                                                                                <th class="nowrap">Date</th>
+                                        <th class="nowrap">Access Count</th>
+                                        <th class="nowrap">QR Code</th>
+                                        <th class="nowrap">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for doc in documents.items %}
+                                    <tr>
+                                        <td class="align-middle">
+                                            <strong>{{ doc.document_number or ('#' ~ doc.id) }}</strong>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-file-{{ 'pdf' if 'pdf' in doc.file_type else 'alt' }} text-primary me-2"></i>
+                                                <div>
+                                                    <div class="fw-bold truncate" title="{{ doc.title }}">{{ doc.title }}</div>
+                                                    <small class="text-muted truncate" title="{{ doc.filename }}">{{ doc.filename }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ doc.document_type.name }}</span>
+                                        </td>
+                                                                                <td><span class="truncate" title="{{ (doc.owner_details.first_name if doc.owner_details and doc.owner_details.first_name else doc.owner.first_name) }}">{{ (doc.owner_details.first_name if doc.owner_details and doc.owner_details.first_name else doc.owner.first_name) }}</span></td>
+                                        <td><span class="truncate" title="{{ (doc.owner_details.middle_name if doc.owner_details and doc.owner_details.middle_name else (doc.owner.middle_name|default('', true))) }}">{{ (doc.owner_details.middle_name if doc.owner_details and doc.owner_details.middle_name else (doc.owner.middle_name|default('', true))) }}</span></td>
+                                        <td><span class="truncate" title="{{ (doc.owner_details.last_name if doc.owner_details and doc.owner_details.last_name else doc.owner.last_name) }}">{{ (doc.owner_details.last_name if doc.owner_details and doc.owner_details.last_name else doc.owner.last_name) }}</span></td>
+                                        <td><span class="truncate" title="{{ doc.uploader.first_name }}">{{ doc.uploader.first_name }}</span></td>
+                                        <td><span class="truncate" title="{{ doc.uploader.middle_name|default('', true) }}">{{ doc.uploader.middle_name|default('', true) }}</span></td>
+                                        <td><span class="truncate" title="{{ doc.uploader.last_name }}">{{ doc.uploader.last_name }}</span></td>
+                                                                                <td>{{ doc.created_at.strftime('%Y-%m-%d') }}</td>
+                                        <td>
+                                            <span class="badge bg-info">{{ doc.access_count }}</span>
+                                        </td>
+                                        <td>
+                                            {% if doc.qr_code_path %}
+                                            <button class="btn btn-sm btn-outline-secondary" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#qrModal{{ doc.id }}">
+                                                <i class="fas fa-qrcode"></i>
+                                            </button>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="{{ url_for('document_detail', doc_id=doc.id) }}" 
+                                                   class="btn btn-sm btn-outline-primary" title="View">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                <a href="{{ url_for('download_document', doc_id=doc.id) }}" 
+                                                   class="btn btn-sm btn-outline-success" title="Download">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                                {% if current_user.can_access_admin() %}
+                                                <form method="POST" action="{{ url_for('delete_document', doc_id=doc.id) }}" style="display:inline;">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Delete this document?');">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                            <h5>No documents found</h5>
+                            <p class="text-muted">
+                                {% if search or doc_type_filter %}
+                                    Try adjusting your search criteria or filters.
+                                {% else %}
+                                    No documents have been uploaded yet.
+                                {% endif %}
+                            </p>
+                            {% if current_user.can_upload_documents() and not search and not doc_type_filter %}
+                            <a href="{{ url_for('upload_document') }}" class="btn btn-primary">
+                                <i class="fas fa-upload me-1"></i>Upload First Document
+                            </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if documents.pages > 1 %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Documents pagination">
+                <ul class="pagination justify-content-center">
+                    {% if documents.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('documents', page=documents.prev_num, search=search, type=doc_type_filter, status=status_filter) }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for page_num in documents.iter_pages() %}
+                        {% if page_num %}
+                            {% if page_num != documents.page %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('documents', page=page_num, search=search, type=doc_type_filter, status=status_filter) }}">
+                                    {{ page_num }}
+                                </a>
+                            </li>
+                            {% else %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">…</span>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if documents.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('documents', page=documents.next_num, search=search, type=doc_type_filter, status=status_filter) }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- QR Code Modals -->
+{% for doc in documents.items %}
+{% if doc.qr_code_path %}
+<div class="modal fade" id="qrModal{{ doc.id }}" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">QR Code - {{ doc.title }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+             <img src="{{ url_for('static', filename=doc.qr_code_path) }}" 
+                 alt="QR Code" class="img-fluid">
+                <p class="mt-2 small text-muted">{{ doc.document_number or ('#' ~ doc.id) }}</p>
+                <div class="d-grid mt-2">
+                    <a class="btn btn-primary" href="{{ url_for('download_qr', doc_id=doc.id) }}">
+                        <i class="fas fa-download me-1"></i>Download QR Code
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}

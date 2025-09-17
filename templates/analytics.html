@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - QR Document Management System{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-chart-bar me-2"></i>Analytics & Predictions</h2>
+                    <p class="text-muted mb-0">Document usage statistics and predictive insights</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary" onclick="exportReport()">
+                        <i class="fas fa-download me-1"></i>Export Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Overview -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ stats.total_documents }}</h4>
+                            <p class="mb-0">Total Documents</p>
+                        </div>
+                        <i class="fas fa-file-alt fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ stats.total_users }}</h4>
+                            <p class="mb-0">Active Users</p>
+                        </div>
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ stats.total_downloads }}</h4>
+                            <p class="mb-0">Total Downloads</p>
+                        </div>
+                        <i class="fas fa-download fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>{{ stats.recent_activity }}</h4>
+                            <p class="mb-0">24h Activity</p>
+                        </div>
+                        <i class="fas fa-clock fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <!-- Monthly Requests Chart -->
+        <div class="col-lg-8 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5><i class="fas fa-line-chart me-2"></i>Monthly Document Requests</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Document Types Chart -->
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5><i class="fas fa-pie-chart me-2"></i>Document Types</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="typeChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Documents and Predictions Row -->
+    <div class="row mb-4">
+        <!-- Top Documents -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5><i class="fas fa-trophy me-2"></i>Most Accessed Documents</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="topDocsChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Predictive Insights -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5><i class="fas fa-crystal-ball me-2"></i>Predictive Insights</h5>
+                </div>
+                <div class="card-body">
+                    {% if predictions %}
+                        {% for prediction in predictions %}
+                        <div class="alert alert-{{ 'success' if prediction.trend == 'increase' else 'info' if prediction.trend == 'seasonal_increase' else 'warning' }} mb-3">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-{{ 'arrow-up' if prediction.trend == 'increase' else 'calendar' if prediction.trend == 'seasonal_increase' else 'arrow-down' }} me-2 mt-1"></i>
+                                <div>
+                                    <div class="fw-bold">{{ prediction.document_type }}</div>
+                                    <div>{{ prediction.message }}</div>
+                                    {% if prediction.change_percent > 0 %}
+                                    <small class="text-muted">Expected change: {{ prediction.change_percent|round(1) }}%</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                            <h6>No Predictions Available</h6>
+                            <p class="text-muted">More historical data is needed to generate accurate predictions.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Documents Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-list me-2"></i>Top Accessed Documents</h5>
+                </div>
+                <div class="card-body">
+                    {% if stats.top_documents %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Document Title</th>
+                                        <th>Access Count</th>
+                                        <th>Popularity</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for doc in stats.top_documents %}
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-{{ 'warning' if loop.index == 1 else 'secondary' if loop.index == 2 else 'info' if loop.index == 3 else 'light' }}">
+                                                #{{ loop.index }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <i class="fas fa-file text-primary me-2"></i>
+                                            {{ doc.title }}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success">{{ doc.access_count }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar" role="progressbar" 
+                                                     style="width: {{ (doc.access_count / stats.top_documents[0].access_count * 100) if stats.top_documents[0].access_count > 0 else 0 }}%">
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No document access data available yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+<script>
+// Initialize charts when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+});
+
+function exportReport() {
+    // This would typically generate and download a PDF or Excel report
+    alert('Export functionality would be implemented here');
+}
+</script>
+{% endblock %}
