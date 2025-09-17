@@ -44,81 +44,139 @@
                     </nav>
                 </div>
                 <div class="text-end">
-                    <div class="btn-group btn-group-flex" role="group">
-                        {% if has_email_grant or current_user.can_access_admin() %}
-                        <button class="btn btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#emailModal">
-                            <i class="fas fa-envelope me-1"></i>Email
-                        </button>
-                        {% else %}
-                        <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='email') }}" class="d-inline ms-2 request-access-form">
-                            <button type="submit" class="btn btn-outline-secondary" data-kind="email">
-                                <i class="fas fa-envelope me-1"></i>Request Email
+                    <div class="d-flex justify-content-end align-items-center gap-2 flex-wrap">
+                        <!-- Primary: Share dropdown -->
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Share">
+                                <i class="fas fa-share-from-square me-1"></i>Share
                             </button>
-                        </form>
-                        {% endif %}
-                        {% if has_download_grant or current_user.can_access_admin() %}
-                        <a href="{{ url_for('download_document', doc_id=document.id) }}" class="btn btn-success">
-                            <i class="fas fa-download me-1"></i>Download
-                        </a>
-                        {% else %}
-                        <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='download') }}" class="d-inline request-access-form">
-                            <button type="submit" class="btn btn-outline-success" data-kind="download">
-                                <i class="fas fa-download me-1"></i>Request Download
-                            </button>
-                        </form>
-                        {% endif %}
-                        {% if has_open_grant or current_user.can_access_admin() %}
-                        <button class="btn btn-outline-secondary ms-2" onclick="openPreview()">
-                            <i class="fas fa-eye me-1"></i>View Original Document
-                        </button>
-                        {% else %}
-                        <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='open') }}" class="d-inline ms-2 request-access-form">
-                            <button type="submit" class="btn btn-outline-secondary" data-kind="open">
-                                <i class="fas fa-external-link-alt me-1"></i>Request Open
-                            </button>
-                        </form>
-                        {% endif %}
-                        {% if has_print_grant or current_user.can_access_admin() %}
-                        <a href="{{ url_for('print_document', doc_id=document.id) }}" target="_blank" class="btn btn-outline-primary ms-2">
-                            <i class="fas fa-print me-1"></i>Print
-                        </a>
-                        {% else %}
-                        <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='print') }}" class="d-inline ms-2 request-access-form">
-                            <button type="submit" class="btn btn-outline-primary" data-kind="print">
-                                <i class="fas fa-print me-1"></i>Request Print
-                            </button>
-                        </form>
-                        {% endif %}
-                        {# Show Edit button for editable types when user has permission #}
-                        {% set _ext = (document.filename or '')|lower %}
-                        {% if can_edit %}
-                        <a href="{{ url_for('edit_document', doc_id=document.id) }}" class="btn btn-warning ms-2">
-                            <i class="fas fa-pen-to-square me-1"></i>Edit
-                        </a>
-                        {% endif %}
-                        {% if document.qr_code_path %}
-                        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#qrModal">
-                            <i class="fas fa-qrcode me-1"></i>QR Code
-                        </button>
-                        {% endif %}
-                        {% if not can_edit and not current_user.can_access_admin() %}
-                        <button type="button" class="btn btn-outline-warning ms-2" id="openRequestEditBtn" data-doc-id="{{ document.id }}">
-                            <i class="fas fa-user-pen me-1"></i><span class="req-edit-label">Request Edit</span>
-                        </button>
-                        {% endif %}
-                        {% if current_user.can_access_admin() or document.uploaded_by_id == current_user.id %}
-                            {% if current_user.can_access_admin() or has_update_grant %}
-                            <a href="{{ url_for('update_document', doc_id=document.id) }}" class="btn btn-outline-danger">
-                                <i class="fas fa-file-arrow-up me-1"></i>Update Doc
+                            <ul class="dropdown-menu">
+                                <li>
+                                    {% if has_email_grant or current_user.can_access_admin() %}
+                                    <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#emailModal">
+                                        <i class="fas fa-envelope me-2"></i>Email
+                                    </button>
+                                    {% elif unresolved_requests and unresolved_requests.get('email') %}
+                                    <span class="dropdown-item disabled" title="Pending approval">
+                                        <i class="fas fa-clock me-2"></i>Email (Pending)
+                                    </span>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='email') }}">
+                                        <button type="submit" class="dropdown-item" data-kind="email">
+                                            <i class="fas fa-envelope me-2"></i>Request Email
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </li>
+                                <li>
+                                    {% if document.qr_code_path %}
+                                    <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#qrModal">
+                                        <i class="fas fa-qrcode me-2"></i>QR Code
+                                    </button>
+                                    {% else %}
+                                    <span class="dropdown-item disabled"><i class="fas fa-qrcode me-2"></i>QR Code unavailable</span>
+                                    {% endif %}
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Primary: Download -->
+                        <div>
+                            {% if has_download_grant or current_user.can_access_admin() %}
+                            <a href="{{ url_for('download_document', doc_id=document.id) }}" class="btn btn-success" title="Download">
+                                <i class="fas fa-download"></i>
                             </a>
                             {% else %}
-                            <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='update') }}" class="d-inline request-access-form">
-                                <button type="submit" class="btn btn-outline-danger" data-kind="update">
-                                    <i class="fas fa-file-arrow-up me-1"></i>Request Update
+                            {% if unresolved_requests and unresolved_requests.get('download') %}
+                            <button type="button" class="btn btn-outline-success" title="Pending approval" disabled>
+                                <i class="fas fa-clock"></i>
+                            </button>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='download') }}" class="d-inline">
+                                <button type="submit" class="btn btn-outline-success" title="Request Download" data-kind="download">
+                                    <i class="fas fa-download"></i>
                                 </button>
                             </form>
                             {% endif %}
-                        {% endif %}
+                            {% endif %}
+                        </div>
+
+                        <!-- Primary: Print -->
+                        <div>
+                            {% if has_print_grant or current_user.can_access_admin() %}
+                            <a href="{{ url_for('print_document', doc_id=document.id) }}" target="_blank" class="btn btn-outline-primary" title="Print">
+                                <i class="fas fa-print"></i>
+                            </a>
+                            {% else %}
+                            {% if unresolved_requests and unresolved_requests.get('print') %}
+                            <button type="button" class="btn btn-outline-primary" title="Pending approval" disabled>
+                                <i class="fas fa-clock"></i>
+                            </button>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='print') }}" class="d-inline">
+                                <button type="submit" class="btn btn-outline-primary" title="Request Print" data-kind="print">
+                                    <i class="fas fa-print"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% endif %}
+                        </div>
+
+                        <!-- Secondary: More menu -->
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="More">
+                                <i class="fas fa-ellipsis-h"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    {% if has_open_grant or current_user.can_access_admin() %}
+                                    <button class="dropdown-item" type="button" onclick="openPreview()">
+                                        <i class="fas fa-eye me-2"></i>View Original Document
+                                    </button>
+                                    {% else %}
+                                    {% if unresolved_requests and unresolved_requests.get('open') %}
+                                    <span class="dropdown-item disabled" title="Pending approval">
+                                        <i class="fas fa-clock me-2"></i>Open (Pending)
+                                    </span>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='open') }}">
+                                        <button type="submit" class="dropdown-item" data-kind="open">
+                                            <i class="fas fa-external-link-alt me-2"></i>Request Open
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    {% endif %}
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    {% if current_user.can_access_admin() or has_update_grant %}
+                                    <a class="dropdown-item" href="{{ url_for('update_document', doc_id=document.id) }}">
+                                        <i class="fas fa-file-arrow-up me-2"></i>Request Update
+                                    </a>
+                                    {% else %}
+                                    {% if unresolved_requests and unresolved_requests.get('update') %}
+                                    <span class="dropdown-item disabled" title="Pending approval">
+                                        <i class="fas fa-clock me-2"></i>Update (Pending)
+                                    </span>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('request_access', doc_id=document.id, kind='update') }}">
+                                        <button type="submit" class="dropdown-item" data-kind="update">
+                                            <i class="fas fa-file-arrow-up me-2"></i>Request Update
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    {% endif %}
+                                </li>
+                                {% if can_edit %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('edit_document', doc_id=document.id) }}">
+                                        <i class="fas fa-pen-to-square me-2"></i>Edit
+                                    </a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>

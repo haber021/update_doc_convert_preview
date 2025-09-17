@@ -790,40 +790,41 @@ def document_detail(doc_id):
         except Exception:
             owner_edit_expiration = None
 
-    # Compute unresolved requests for this user to control re-request availability
-    unresolved_requests = {}
+    # Determine if there are unresolved requests for specific actions by this user
+    kinds = ['download', 'print', 'update', 'open', 'email', 'owner_edit', 'edit']
+    unresolved_requests = {k: False for k in kinds}
     if not current_user.can_access_admin():
-        try:
-            kinds = ['download', 'print', 'update', 'open', 'email', 'owner_edit']
-            for kind in kinds:
-                last_req = AccessLog.query.filter_by(user_id=current_user.id, document_id=document.id, action=f'request_{kind}').order_by(desc(AccessLog.timestamp)).first()
-                if not last_req:
-                    unresolved_requests[kind] = False
+        for k in kinds:
+            try:
+                if k == 'owner_edit':
+                    req_action = 'request_owner_edit'
+                    grant_action = 'owner_edit_grant'
+                    reject_action = 'request_owner_edit_reject'
+                elif k == 'edit':
+                    req_action = 'request_edit'
+                    grant_action = 'edit_grant'
+                    reject_action = 'request_edit_reject'
                 else:
+                    req_action = f'request_{k}'
+                    grant_action = f'{k}_grant'
+                    reject_action = f'{req_action}_reject'
+
+                last_req = AccessLog.query.filter_by(
+                    user_id=current_user.id,
+                    document_id=document.id,
+                    action=req_action
+                ).order_by(desc(AccessLog.timestamp)).first()
+
+                if last_req:
                     resolution = AccessLog.query.filter(
                         AccessLog.user_id == current_user.id,
                         AccessLog.document_id == document.id,
-                        AccessLog.action.in_([f'{kind}_grant', f'request_{kind}_reject']),
+                        AccessLog.action.in_([grant_action, reject_action]),
                         AccessLog.timestamp >= last_req.timestamp
                     ).first()
-                    unresolved_requests[kind] = (resolution is None)
-        except Exception:
-            pass
-        # Edit requests
-        try:
-            last_req = AccessLog.query.filter_by(user_id=current_user.id, document_id=document.id, action='request_edit').order_by(desc(AccessLog.timestamp)).first()
-            if not last_req:
-                unresolved_requests['edit'] = False
-            else:
-                resolution = AccessLog.query.filter(
-                    AccessLog.user_id == current_user.id,
-                    AccessLog.document_id == document.id,
-                    AccessLog.action.in_(['edit_grant', 'request_edit_reject']),
-                    AccessLog.timestamp >= last_req.timestamp
-                ).first()
-                unresolved_requests['edit'] = (resolution is None)
-        except Exception:
-            unresolved_requests['edit'] = False
+                    unresolved_requests[k] = (resolution is None)
+            except Exception:
+                unresolved_requests[k] = False
 
     # Generate a short-lived public URL for external viewers (e.g., Office/Google)
     try:
@@ -1552,6 +1553,25 @@ def request_access(doc_id, kind):
     # Basic permission: students can't request actions on others' docs
     if current_user.has_role('Student') and document.owner_id != current_user.id:
         abort(403)
+
+    # Prevent duplicate pending requests by the same user for the same kind
+    try:
+        req_action = f'request_{kind}'
+        grant_action = f'{kind}_grant'
+        reject_action = f'{req_action}_reject'
+        last_req = AccessLog.query.filter_by(user_id=current_user.id, document_id=document.id, action=req_action).order_by(desc(AccessLog.timestamp)).first()
+        if last_req:
+            resolution = AccessLog.query.filter(
+                AccessLog.user_id == current_user.id,
+                AccessLog.document_id == document.id,
+                AccessLog.action.in_([grant_action, reject_action]),
+                AccessLog.timestamp >= last_req.timestamp
+            ).first()
+            if resolution is None:
+                flash('A request for this action is already pending approval.', 'info')
+                return redirect(url_for('document_detail', doc_id=doc_id))
+    except Exception:
+        pass
 
     # Log the request
     try:
