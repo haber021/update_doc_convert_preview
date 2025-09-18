@@ -19,4 +19,6 @@ dependencies = [
     "qrcode>=8.2",
     "pandas>=2.3.2",
     "scikit-learn>=1.7.1",
+    # Windows-only optional dependency for Microsoft Word COM fallback (DOC/DOCX/PDF conversions)
+    "pywin32>=306; platform_system == 'Windows'",
 ]

@@ -8,6 +8,7 @@ import mimetypes
 import subprocess
 import tempfile
 import shutil
+from urllib.parse import quote as _urlquote
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, desc, or_
@@ -1282,6 +1283,47 @@ def document_pdf(doc_id):
                 app.logger.error(f"File not found for document {document.id}: {document.file_path}")
                 abort(404)
 
+    # Admin-only: permanently convert legacy .doc to .docx before preview for security/consistency
+    try:
+        ext = os.path.splitext(file_path)[1].lower()
+        if current_user.can_access_admin() and ext == '.doc':
+            new_docx_temp = _convert_word_to_docx(file_path)
+            if new_docx_temp and os.path.exists(new_docx_temp):
+                uploads_dir = app.config.get('UPLOAD_FOLDER', 'uploads')
+                try:
+                    os.makedirs(uploads_dir, exist_ok=True)
+                except Exception:
+                    pass
+                base = os.path.splitext(os.path.basename(document.filename or os.path.basename(file_path)))[0]
+                new_filename = f"{base}.docx"
+                dest_path = os.path.join(uploads_dir, f"{uuid.uuid4()}_{new_filename}")
+                shutil.move(new_docx_temp, dest_path)
+                try:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                except Exception:
+                    pass
+                document.filename = os.path.basename(dest_path)
+                document.file_path = dest_path
+                try:
+                    document.file_size = os.path.getsize(dest_path)
+                except Exception:
+                    document.file_size = None
+                document.file_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                try:
+                    # Audit log the standardization event
+                    log_user_action(current_user.id, 'standardize_doc', document.id, 'Converted .doc to .docx for admin preview')
+                except Exception:
+                    pass
+                # continue preview using updated path
+                file_path = document.file_path
+    except Exception as _e:
+        app.logger.error(f"Admin DOC->DOCX standardization (document_pdf) failed: {_e}")
+
     mimetype = (document.file_type or mimetypes.guess_type(file_path)[0] or '').lower()
 
     # If already PDF, serve inline
@@ -1294,24 +1336,70 @@ def document_pdf(doc_id):
     if file_path.lower().endswith(('.doc', '.docx', '.odt')):
         pdf_path = _convert_word_to_pdf(file_path)
         if not pdf_path:
-            # Show a minimal inline message inside the iframe instead of redirecting the whole app
-            return (
-                """
+            # Local HTML fallback for DOCX if PDF conversion is unavailable
+            try:
+                if file_path.lower().endswith('.docx'):
+                    from docx import Document as _DocxDocument  # type: ignore
+                    paragraphs: list[str] = []
+                    try:
+                        dd = _DocxDocument(file_path)
+                        for p in dd.paragraphs:
+                            t = (p.text or '').strip()
+                            if t:
+                                paragraphs.append(t)
+                    except Exception as _e2:
+                        app.logger.warning(f'docx-text-extract fallback failed: {_e2}')
+                    para_html = "\n".join(f"<div style='margin:8px 0;line-height:1.5'>{mimetypes.escape(t) if hasattr(mimetypes,'escape') else t}</div>" for t in paragraphs) or "<div class='text-muted'>No extractable text found.</div>"
+                    html = f"""
 <html>
-<head><title>Preview not available</title>
-<meta name=viewport content="width=device-width, initial-scale=1" />
-<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;background:#0b0f19;color:#f8f9fa;margin:0;padding:16px} .card{background:#192132;border-radius:8px;padding:16px} a{color:#6ea8fe}</style>
+<head><title>{document.filename or 'Document'}</title>
+<meta name=viewport content=\"width=device-width, initial-scale=1\" />
+<style>body{{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial;padding:16px;color:#e9ecef;background:#0b0f19}}</style>
 </head>
 <body>
-  <div class="card">
-    <h3 style="margin:0 0 8px 0;">Preview not available</h3>
-    <p style="margin:0 0 6px 0;">The server couldn't convert this Word document to PDF right now.</p>
-    <p style="margin:0 0 6px 0;">You can try downloading the file instead.</p>
-    <p style="margin:0"><a href="%s" target="_blank" rel="noopener">Download the file</a></p>
-  </div>
+  <h3 style=\"margin:0 0 12px 0;color:#adb5bd\">{document.filename or ''}</h3>
+  <div style=\"background:#192132;border-radius:8px;padding:12px\">{para_html}</div>
 </body>
 </html>
-""" % url_for('download_document', doc_id=document.id), 200, {'Content-Type': 'text/html'}
+"""
+                    return html, 200, {'Content-Type': 'text/html'}
+            except Exception:
+                pass
+
+            # Fallback: if we have a .docx now and the app is publicly reachable, try Office Online viewer
+            try:
+                host = (request.host or '').lower()
+                is_local = ('localhost' in host) or host.startswith('127.0.0.1') or host.startswith('0.0.0.0')
+                if file_path.lower().endswith('.docx') and not is_local:
+                    expires_ts = int(datetime.utcnow().timestamp()) + 300
+                    token = _make_public_token(document.id, expires_ts)
+                    public_url = url_for('public_document_view', token=token, _external=True)
+                    office_url = "https://view.officeapps.live.com/op/view.aspx?src=" + _urlquote(public_url, safe='')
+                    html = f"""
+<html>
+<head><title>Word Preview</title>
+<meta name=viewport content=\"width=device-width, initial-scale=1\" />
+<style>html,body{{height:100%;margin:0;background:#0b0f19}}</style>
+</head>
+<body>
+  <iframe src=\"{office_url}\" style=\"border:0;width:100%;height:100%\" allowfullscreen></iframe>
+</body>
+</html>
+"""
+                    return html, 200, {'Content-Type': 'text/html'}
+            except Exception:
+                pass
+            # Last resort: show a minimal inline message with download link
+            return (
+                f"""
+<html>
+<head><title>Preview not available</title></head>
+<body>
+<h3>Preview not available</h3>
+<p>The document cannot be previewed inline right now. Please ensure LibreOffice is installed (SOFFICE_PATH) or Microsoft Word + pywin32 on Windows for conversion. You can also <a href=\"{url_for('download_document', doc_id=document.id)}\" target=\"_blank\">download the file</a> to view it.</p>
+</body>
+</html>
+""", 200, {'Content-Type': 'text/html'}
             )
 
         @after_this_request
@@ -1352,6 +1440,80 @@ def document_pdf(doc_id):
         except Exception as e:
             app.logger.error(f'Image to PDF conversion failed: {e}')
             return redirect(url_for('download_document', doc_id=document.id))
+
+
+@app.route('/admin/document/<int:doc_id>/standardize_docx', methods=['POST'])
+@login_required
+def standardize_docx(doc_id: int):
+    """Admin-only: convert legacy .doc/.odt to .docx and persist the change.
+    Returns JSON with success and message. No-op if already .docx or not a Word file.
+    """
+    if not current_user.can_access_admin():
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
+
+    document = Document.query.get_or_404(doc_id)
+
+    # Resolve current file path
+    file_path = document.file_path or ''
+    if not os.path.exists(file_path):
+        alt = os.path.join(app.config.get('UPLOAD_FOLDER', 'uploads'), file_path)
+        if os.path.exists(alt):
+            file_path = alt
+        else:
+            candidate = os.path.join(app.config.get('UPLOAD_FOLDER', 'uploads'), document.filename or '')
+            if os.path.exists(candidate):
+                file_path = candidate
+            else:
+                return jsonify({'success': False, 'message': 'File not found on server'}), 404
+
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext not in ['.doc', '.odt', '.docx']:
+        return jsonify({'success': True, 'message': 'Not a Word document; no action taken'})
+    if ext == '.docx':
+        return jsonify({'success': True, 'message': 'Already DOCX'})
+
+    try:
+        out_tmp = _convert_word_to_docx(file_path)
+        if not out_tmp or not os.path.exists(out_tmp):
+            return jsonify({'success': False, 'message': 'Failed to convert to DOCX. Ensure LibreOffice or Word COM is available.'}), 500
+
+        uploads_dir = app.config.get('UPLOAD_FOLDER', 'uploads')
+        os.makedirs(uploads_dir, exist_ok=True)
+        base = os.path.splitext(os.path.basename(document.filename or os.path.basename(file_path)))[0]
+        new_filename = f"{uuid.uuid4()}_{base}.docx"
+        dest_path = os.path.join(uploads_dir, new_filename)
+        shutil.move(out_tmp, dest_path)
+
+        # Remove old .doc/.odt to avoid stale data
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass
+
+        # Update DB
+        document.filename = new_filename
+        document.file_path = dest_path
+        try:
+            document.file_size = os.path.getsize(dest_path)
+        except Exception:
+            document.file_size = None
+        document.file_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        try:
+            db.session.commit()
+            try:
+                log_user_action(current_user.id, 'standardize_doc', document.id, 'Converted .doc/.odt to .docx (manual)')
+            except Exception:
+                pass
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'standardize_docx commit failed: {e}')
+            return jsonify({'success': False, 'message': 'Database update failed'}), 500
+
+        return jsonify({'success': True, 'message': 'Converted to DOCX', 'filename': new_filename})
+    except Exception as e:
+        app.logger.error(f'standardize_docx error: {e}')
+        return jsonify({'success': False, 'message': 'Unexpected error during conversion'}), 500
 
 
 @app.route('/public/view/<string:token>')

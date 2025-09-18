@@ -663,9 +663,26 @@ function confirmSystemMaintenance() {
 
 function previewDocument(docId) {
     const iframe = document.getElementById('previewIframe');
-    iframe.src = `{{ url_for('view_document', doc_id=0) }}`.replace('0', String(docId));
     const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    // Show modal immediately with a loading state
+    iframe.src = 'about:blank';
+    iframe.title = 'Preparing preview...';
     modal.show();
+    // Start global loader
+    if (window.startLoading) startLoading('Standardizing document for preview...');
+    // Ensure we stop loader when iframe completes
+    iframe.onload = function(){ if (window.stopLoading) stopLoading(); };
+    iframe.onerror = function(){ if (window.stopLoading) stopLoading(); };
+    // 1) Ask server to standardize to DOCX if needed (admin-only endpoint)
+    fetch(`{{ url_for('standardize_docx', doc_id=0) }}`.replace('0', String(docId)), {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).catch(function(){ /* ignore errors; we will still attempt preview */ })
+      .finally(function(){
+        if (window.updateLoading) updateLoading('Loading PDF preview...');
+        // 2) Load the PDF preview endpoint (handles conversion to PDF)
+        iframe.src = `{{ url_for('document_pdf', doc_id=0) }}`.replace('0', String(docId));
+      });
 }
 
 function approveRequest(id, btn) {
@@ -745,12 +762,23 @@ function saveSettings() {
 }
 
 function previewDocument(docId) {
-    // Placeholder for document preview functionality
-    // Assuming a route exists to serve the document file for preview
+    // Standardize to DOCX (server) before opening preview
     const iframe = document.getElementById('previewIframe');
-    iframe.src = `{{ url_for('view_document', doc_id=0) }}`.replace('0', String(docId));
     const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    iframe.src = 'about:blank';
+    iframe.title = 'Preparing preview...';
     modal.show();
+    if (window.startLoading) startLoading('Standardizing document for preview...');
+    iframe.onload = function(){ if (window.stopLoading) stopLoading(); };
+    iframe.onerror = function(){ if (window.stopLoading) stopLoading(); };
+    fetch(`{{ url_for('standardize_docx', doc_id=0) }}`.replace('0', String(docId)), {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).catch(function(){})
+      .finally(function(){
+        if (window.updateLoading) updateLoading('Loading PDF preview...');
+        iframe.src = `{{ url_for('document_pdf', doc_id=0) }}`.replace('0', String(docId));
+      });
 }
 function approveAccessRequest(id, btn) {
     const row = btn ? btn.closest('tr') : null;

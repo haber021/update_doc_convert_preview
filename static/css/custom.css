@@ -308,6 +308,32 @@ body {
     z-index: 1000;
 }
 
+/* Global Loading Overlay */
+#globalLoadingOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000; /* above nav and modals backdrop */
+}
+
+#globalLoadingOverlay .glo-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(1.5px);
+}
+
+#globalLoadingOverlay .glo-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 280px;
+}
+
+[data-bs-theme="dark"] #globalLoadingOverlay .glo-backdrop {
+    background: rgba(0, 0, 0, 0.6);
+}
+
 /* Chart Container */
 .chart-container {
     position: relative;
